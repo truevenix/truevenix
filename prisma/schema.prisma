@@ -1,0 +1,324 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String  @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  name          String?
+  username      String?   @unique
+  email         String?   @unique
+  password      String?
+  phoneNumber   String?
+  image         String?
+  bio           String?
+  role          UserRole  @default(USER)
+  addresses     Address[]
+  onboarded     Boolean   @default(false)
+  isTwoFactorEnabled Boolean @default(false)
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  accounts      Account[]
+  reviews       Review[]
+  orders        Order[]
+  wishlist      Wishlist[]
+  deviceTokens  DeviceToken[]
+  twoFactorConfirmation TwoFactorConfirmation?
+}
+
+enum DevicePlatform {
+  WEB
+  ANDROID
+  IOS
+}
+
+// One row per device a user has granted notification permission on. A push
+// to a user fans out to every row here (see src/lib/firebase-admin.ts).
+model DeviceToken {
+  id        String         @id @default(uuid()) @db.Uuid
+  userId    String         @db.Uuid
+  token     String         @unique
+  platform  DevicePlatform @default(WEB)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Address {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String  ? @db.Uuid
+  label       String?          // "Home" | "Work" | "Other"
+  guestEmail String?          // for guest checkout
+  fullName    String?
+  phoneNumber String?
+  state       String   @default("Abuja")
+  lga         String           // e.g. "Ibadan North"
+  town        String           // e.g. "Bodija"
+  street      String?
+  isDefault   Boolean  @default(false)
+  latitude    Float?           // reserved for map feature
+  longitude   Float?           // reserved for map feature
+  formattedAddress String?   // ← NEW: full address from Google
+  placeId          String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User ?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([guestEmail])
+}
+
+// Category enum for product classification
+enum ProductCategory {
+  ALL
+  GADGETS
+  SOLAR
+  ELECTRONICS
+  PHONES
+  COMPUTERS
+}
+
+model Product {
+  id            String          @id @default(uuid()) @db.Uuid
+  name          String
+  description   String
+  descriptionP2 String?   
+  descriptionP3 String?
+  price         Float
+  originalPrice Float?
+  brand         String?
+  category      ProductCategory
+  subCategory   String?
+  inStock       Boolean         @default(true)
+  stockCount    Int             @default(0)
+  badge         String?
+  isFeatured    Boolean         @default(false)
+  specifications Json?
+  keyFeatures   Json?
+  warranty      String?
+  images        Image[]
+  reviews       Review[]
+  orderItems    OrderItem[]
+  wishlist      Wishlist[]
+  sizeOptions   SizeOption[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+model SizeOption {
+  id        String  @id @default(uuid()) @db.Uuid
+  productId String  @db.Uuid
+  label     String                    // e.g. "Amperage" | "Voltage" | "Power Rating"
+  name      String                    // e.g. "30A" | "48V" | "5kVA" | "100Ah"
+  price     Float
+  imageUrl  String?
+  isDefault Boolean @default(false)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model Image {
+  id        String  @id @default(uuid()) @db.Uuid
+  color     String
+  colorCode String
+  image     String
+  productId String  @db.Uuid
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model AiChatUsage {
+  id     String @id @default(cuid())
+  userId String
+  date   String   // "YYYY-MM-DD"
+  count  Int      @default(0)
+  @@unique([userId, date])
+  @@index([userId])
+}
+model Wishlist {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  productId String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+}
+
+
+model Review {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  productId   String   @db.Uuid
+  rating      Int
+  comment     String
+  createdDate DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([userId])
+}
+
+
+enum DeliveryStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model Order {
+  id             String         @id @default(uuid()) @db.Uuid
+  userId         String?        @db.Uuid
+  customerEmail  String
+  customerName   String?
+  customerPhone  String?
+  guestEmail     String?
+  amount         Float
+  currency       String         @default("NGN")
+  status         String
+  addressId      String?
+  deliveryStatus DeliveryStatus @default(PENDING)
+  createDate     DateTime       @default(now())
+  referenceId    String         @unique
+  address        String?
+  phoneNumber    String?
+  paymentProvider String?
+  paymentMethod   String?
+  paymentUrl      String?
+  paidAt          DateTime?
+
+  user          User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  orderItems    OrderItem[]
+  statusUpdates OrderStatusUpdate[]
+  timeline      OrderTimeline[]
+
+  @@index([userId])
+  @@index([customerEmail])
+  @@index([guestEmail])
+  @@index([referenceId, customerEmail])
+}
+
+model OrderItem {
+  id             String  @id @default(uuid()) @db.Uuid
+  orderId        String  @db.Uuid
+  productId      String  @db.Uuid
+  name           String
+  description    String
+  category       String
+  brand          String?
+  quantity       Int
+  price          Float
+  imageColor     String
+  imageColorCode String
+  imageUrl       String
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: NoAction)
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model OrderStatusUpdate {
+  id        String         @id @default(uuid()) @db.Uuid
+  orderId   String         @db.Uuid
+  status    DeliveryStatus
+  note      String?
+  createdAt DateTime       @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+// Free-text shipping updates an admin posts against an order, e.g. "Reached
+// Kaduna" or "Arrived at our Zaria office". Deliberately decoupled from
+// DeliveryStatus — the order can stay on SHIPPED while several of these are
+// posted. Shown to the customer on their order page and can fire a push.
+model OrderTimeline {
+  id        String   @id @default(uuid()) @db.Uuid
+  orderId   String   @db.Uuid
+  title     String   // e.g. "Reached Kaduna"
+  note      String?  // optional extra detail
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+model VerificationToken {
+  id      String   @id @default(uuid())
+  email   String
+  token   String   @unique
+  expires DateTime
+
+  @@unique([email, token])
+}
+
+
+model TwoFactorToken {
+  id      String   @id @default(uuid())
+  email   String
+  token   String   @unique
+  expires DateTime
+
+  @@unique([email, token])
+}
+
+model TwoFactorConfirmation {
+  id     String @id @default(uuid())
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId])
+}
+
+model PasswordResetToken {
+  id      String   @id @default(uuid())
+  email   String
+  token   String   @unique
+  expires DateTime
+
+  @@unique([email, token])
+}

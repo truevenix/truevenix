@@ -1,0 +1,312 @@
+// src/app/api/mobile-auth/[[...route]]/route.ts
+
+import { Hono } from "hono"
+import { handle } from "hono/vercel"
+import { cors } from "hono/cors"
+import { SignJWT } from "jose"
+import bcrypt from "bcryptjs"
+import { z } from "zod"
+import crypto from "crypto"
+import { db } from "@/lib/db"
+import { verifyMobileToken } from "@/lib/verifyMobileToken"
+import { sendMobileVerificationCodeEmail, sendMobilePasswordResetCodeEmail } from "@/lib/mail"
+import { OAuth2Client } from "google-auth-library"
+
+export const runtime = "nodejs"
+
+const JWT_SECRET = new TextEncoder().encode(process.env.MOBILE_JWT_SECRET!)
+
+// ─── Google OAuth Client ────────────────────────────────────────────────────
+const googleClient = new OAuth2Client(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET
+)
+
+// ─── Reusable helpers — every route below is built from these ─────────────────
+
+async function signMobileToken(userId: string) {
+  return new SignJWT({ userId })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("30d")
+    .sign(JWT_SECRET)
+}
+
+const USER_SELECT = {
+  id: true, name: true, username: true, email: true, image: true,
+  role: true, phoneNumber: true, onboarded: true,
+  isTwoFactorEnabled: true, emailVerified: true,
+} as const
+
+function serializeUser(user: Record<string, any>) {
+  return { ...user, emailVerified: user.emailVerified?.toISOString() ?? null }
+}
+
+function fail(c: any, status: number, message: string) {
+  return c.json({ success: false, error: { code: status, message } }, status)
+}
+
+// verificationToken and passwordResetToken are structurally identical
+// ({ id, email, token, expires }), so one pair of functions issues/consumes
+// a code against whichever delegate you pass in — no duplication per token type.
+type CodeTokenDelegate = {
+  findFirst: (args: any) => Promise<any>
+  delete:    (args: any) => Promise<any>
+  create:    (args: any) => Promise<any>
+}
+
+async function issueCode(delegate: CodeTokenDelegate, email: string) {
+  const token   = crypto.randomInt(100000, 1000000).toString()
+  const expires = new Date(Date.now() + 15 * 60 * 1000) // 15 min
+
+  const existing = await delegate.findFirst({ where: { email } })
+  if (existing) await delegate.delete({ where: { id: existing.id } })
+
+  return delegate.create({ data: { email, token, expires } })
+}
+
+async function consumeCode(delegate: CodeTokenDelegate, email: string, code: string) {
+  const record = await delegate.findFirst({ where: { email, token: code } })
+  if (!record || record.expires < new Date()) return null
+  await delegate.delete({ where: { id: record.id } })
+  return record
+}
+
+async function requireMobileUser(c: any) {
+  const header = c.req.header("Authorization")
+  if (!header?.startsWith("Bearer ")) return null
+  const payload = await verifyMobileToken(header.split(" ")[1])
+  if (!payload) return null
+  return db.user.findUnique({ where: { id: payload.userId }, select: USER_SELECT })
+}
+
+// ─── Input schemas ──────────────────────────────────────────────────────────
+
+const LoginSchema    = z.object({ email: z.string().email(), password: z.string().min(1) })
+const RegisterSchema = z.object({
+  name: z.string().min(1), email: z.string().email(),
+  password: z.string().min(8), phone: z.string().optional(),
+})
+const VerifySchema  = z.object({ email: z.string().email(), code: z.string().length(6) })
+const ResetSchema   = z.object({ email: z.string().email() })
+const ConfirmSchema = z.object({
+  email: z.string().email(), code: z.string().length(6), newPassword: z.string().min(8),
+})
+
+// ─── App ────────────────────────────────────────────────────────────────────
+
+const app = new Hono().basePath("/api/mobile-auth")
+
+app.use(
+  "*",
+  cors({
+    origin:       "*",
+    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+  })
+)
+
+// ─── Auth Routes ──────────────────────────────────────────────────────────
+
+app.post("/login", async (c) => {
+  const parsed = LoginSchema.safeParse(await c.req.json())
+  if (!parsed.success) return fail(c, 400, "Invalid input")
+  const { email, password } = parsed.data
+
+  const user = await db.user.findUnique({
+    where:  { email },
+    select: { ...USER_SELECT, password: true },
+  })
+  if (!user || !user.password) return fail(c, 401, "Invalid credentials")
+  if (!user.emailVerified) return fail(c, 403, "Please verify your email before logging in")
+
+  const valid = await bcrypt.compare(password, user.password)
+  if (!valid) return fail(c, 401, "Invalid credentials")
+
+  const { password: _pw, ...safeUser } = user
+  const token = await signMobileToken(user.id)
+  return c.json({ success: true, data: { token, user: serializeUser(safeUser) } })
+})
+
+app.post("/register", async (c) => {
+  const parsed = RegisterSchema.safeParse(await c.req.json())
+  if (!parsed.success) return fail(c, 400, "Invalid input")
+  const { name, email, password, phone } = parsed.data
+
+  const exists = await db.user.findUnique({ where: { email } })
+  if (exists) return fail(c, 409, "An account with this email already exists")
+
+  const hashed = await bcrypt.hash(password, 12)
+  const user = await db.user.create({
+    data:   { name, email, password: hashed, phoneNumber: phone ?? null },
+    select: { id: true, email: true },
+  })
+
+  const verification = await issueCode(db.verificationToken, email)
+  await sendMobileVerificationCodeEmail(email, verification.token)
+
+  return c.json(
+    {
+      success: true,
+      data: {
+        userId:  user.id,
+        message: "Account created. Enter the code we emailed you to verify your account.",
+      },
+    },
+    201
+  )
+})
+
+app.post("/verify", async (c) => {
+  const parsed = VerifySchema.safeParse(await c.req.json())
+  if (!parsed.success) return fail(c, 400, "Invalid input")
+  const { email, code } = parsed.data
+
+  const record = await consumeCode(db.verificationToken, email, code)
+  if (!record) return fail(c, 400, "Invalid or expired code")
+
+  const user = await db.user.update({
+    where:  { email },
+    data:   { emailVerified: new Date() },
+    select: USER_SELECT,
+  })
+
+  const token = await signMobileToken(user.id)
+  return c.json({ success: true, data: { token, user: serializeUser(user) } })
+})
+
+app.post("/reset", async (c) => {
+  const parsed = ResetSchema.safeParse(await c.req.json())
+  if (!parsed.success) return fail(c, 400, "Invalid input")
+  const { email } = parsed.data
+
+  const user = await db.user.findUnique({ where: { email } })
+  if (user) {
+    const reset = await issueCode(db.passwordResetToken, email)
+    await sendMobilePasswordResetCodeEmail(email, reset.token)
+  }
+
+  // Same response whether or not the account exists — don't leak registered emails
+  return c.json({ success: true, message: "If an account exists for this email, a reset code has been sent." })
+})
+
+app.post("/reset-confirm", async (c) => {
+  const parsed = ConfirmSchema.safeParse(await c.req.json())
+  if (!parsed.success) return fail(c, 400, "Invalid input")
+  const { email, code, newPassword } = parsed.data
+
+  const record = await consumeCode(db.passwordResetToken, email, code)
+  if (!record) return fail(c, 400, "Invalid or expired code")
+
+  const hashed = await bcrypt.hash(newPassword, 12)
+  await db.user.update({ where: { email }, data: { password: hashed } })
+
+  return c.json({ success: true, message: "Password updated. You can now log in." })
+})
+
+app.get("/me", async (c) => {
+  const user = await requireMobileUser(c)
+  if (!user) return fail(c, 401, "Invalid or expired token")
+  return c.json({ success: true, data: { user: serializeUser(user) } })
+})
+
+// ─── Google OAuth Endpoint ──────────────────────────────────────────────
+
+app.post("/google", async (c) => {
+  const { idToken } = await c.req.json()
+  
+  if (!idToken) {
+    return fail(c, 400, "No ID token provided")
+  }
+
+  try {
+    // Verify Google ID token
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    })
+
+    const payload = ticket.getPayload()
+    if (!payload) {
+      return fail(c, 401, "Invalid Google token")
+    }
+
+    const { email, name, picture, sub: googleId } = payload
+
+    if (!email) {
+      return fail(c, 400, "Email not provided by Google")
+    }
+
+    // Check if user exists with password field
+    const existingUser = await db.user.findUnique({
+      where: { email },
+      select: { ...USER_SELECT, password: true },
+    })
+
+    let user
+
+    // Case 1: User exists with password (credential user)
+    if (existingUser && existingUser.password) {
+      // Update with Google info
+      user = await db.user.update({
+        where: { email },
+        data: {
+          image: picture || existingUser.image,
+          emailVerified: new Date(),
+        },
+        select: USER_SELECT,
+      })
+    } 
+    // Case 2: User exists but no password (shouldn't happen, but handle it)
+    else if (existingUser && !existingUser.password) {
+      user = existingUser
+    }
+    // Case 3: User doesn't exist - create one
+    else {
+      // Check if Google account already linked to another user
+      const existingAccount = await db.account.findFirst({
+        where: { provider: "google", providerAccountId: googleId },
+      })
+
+      if (existingAccount) {
+        return fail(c, 409, "Google account already linked to another user")
+      }
+
+      // Create new user
+      user = await db.user.create({
+        data: {
+          email,
+          name: name || email.split("@")[0],
+          image: picture || null,
+          emailVerified: new Date(),
+          phoneNumber: null,
+        },
+        select: USER_SELECT,
+      })
+
+      // Link Google account
+      await db.account.create({
+        data: {
+          userId: user.id,
+          provider: "google",
+          providerAccountId: googleId,
+          type: "oauth",
+        },
+      })
+    }
+
+    // Generate JWT token
+    const token = await signMobileToken(user.id)
+
+    return c.json({
+      success: true,
+      data: { token, user: serializeUser(user) },
+    })
+  } catch (error) {
+    console.error("Google auth error:", error)
+    return fail(c, 401, "Google authentication failed")
+  }
+})
+
+export const GET  = handle(app)
+export const POST = handle(app)

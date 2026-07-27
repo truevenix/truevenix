@@ -1,0 +1,491 @@
+//src/app/api/ai/ask/route.ts
+import { NextRequest, NextResponse } from "next/server"
+import Anthropic from "@anthropic-ai/sdk"
+import { auth } from "@/auth"
+import { db } from "@/lib/db" // ⚠️ adjust to match wherever your Prisma client is exported from
+
+// ─────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────
+
+const MAX_USER_MESSAGE_LENGTH = 400   // characters — prevent prompt injection via long inputs
+const MAX_HISTORY_TURNS       = 6    // keep last 6 turns (3 exchanges) to limit token spend
+const MAX_OUTPUT_TOKENS        = 600   // slightly more room; web search adds useful context
+const MODEL                    = "claude-haiku-4-5-20251001" // supports web_search tool
+const MAX_TOOL_ROUNDS          = 5    // max web search rounds before forcing a text reply
+const DAILY_MESSAGE_LIMIT      = 10   // max AI questions per signed-in user, per calendar day
+const COMPLETION_TOKENS        = 150  // extra tokens to cleanly finish a truncated response
+
+// ─────────────────────────────────────────────
+// DAILY USAGE LIMITER (Postgres-backed via Prisma)
+//
+// In-memory counters don't survive serverless cold starts/restarts,
+// so a hard "10 per day" cap needs somewhere durable to live. We use
+// the same database as everything else rather than adding new infra.
+//
+// Requires the AiChatUsage model (see schema snippet) + a migration.
+// ─────────────────────────────────────────────
+
+function getTodayKey(): string {
+  // UTC calendar day → resets at 1am Lagos time (UTC+1), not local midnight.
+  return new Date().toISOString().slice(0, 10) // "YYYY-MM-DD"
+}
+
+async function checkAndIncrementDailyLimit(
+  userId: string
+): Promise<{ allowed: boolean; remaining: number }> {
+  const date = getTodayKey()
+
+  // Atomic upsert — always increments first, then we check the result.
+  // This avoids a read-then-write race if two requests land at once.
+  const usage = await db.aiChatUsage.upsert({
+    where:  { userId_date: { userId, date } },
+    create: { userId, date, count: 1 },
+    update: { count: { increment: 1 } },
+  })
+
+  if (usage.count > DAILY_MESSAGE_LIMIT) {
+    return { allowed: false, remaining: 0 }
+  }
+
+  return { allowed: true, remaining: DAILY_MESSAGE_LIMIT - usage.count }
+}
+
+// ─────────────────────────────────────────────
+// INPUT SANITISER
+// Strips characters used in prompt injection
+// attempts while keeping natural language intact.
+// ─────────────────────────────────────────────
+
+function sanitiseInput(raw: string): string {
+  return raw
+    .trim()
+    .slice(0, MAX_USER_MESSAGE_LENGTH)
+    // Remove XML/HTML tags that could alter system prompt parsing
+    .replace(/<[^>]*>/g, "")
+    // Collapse excessive whitespace
+    .replace(/\s{3,}/g, "  ")
+}
+
+// ─────────────────────────────────────────────
+// PRODUCT CONTEXT BUILDER
+// Converts the product object into a tight
+// plain-text block injected into the system prompt.
+// Never sent to the client — stays server-side.
+// ─────────────────────────────────────────────
+
+type ProductContext = {
+  name: string
+  brand: string | null
+  category: string
+  subCategory: string | null
+  price: number
+  originalPrice: number | null
+  warranty: string | null
+  inStock: boolean
+  description: string
+  keyFeatures: string[] | null
+  specifications: Record<string, string>
+}
+
+function buildProductContext(p: ProductContext): string {
+  const lines: string[] = [
+    `Product: ${p.name}`,
+    `Brand: ${p.brand ?? "Unknown"}`,
+    `Category: ${p.category}${p.subCategory ? ` › ${p.subCategory}` : ""}`,
+    `Price: ₦${p.price.toLocaleString("en-NG")}${p.originalPrice ? ` (was ₦${p.originalPrice.toLocaleString("en-NG")})` : ""}`,
+    `In Stock: ${p.inStock ? "Yes" : "No"}`,
+    `Warranty: ${p.warranty ?? "Not specified"}`,
+  ]
+
+  if (p.keyFeatures && p.keyFeatures.length > 0) {
+    lines.push(`\nKey Features:\n${p.keyFeatures.map((f) => `- ${f}`).join("\n")}`)
+  }
+
+  const specs = Object.entries(p.specifications)
+  if (specs.length > 0) {
+    lines.push(`\nSpecifications:\n${specs.map(([k, v]) => `- ${k}: ${v}`).join("\n")}`)
+  }
+
+  // Trim description — include first 600 chars only to control token usage
+  const desc = p.description.trim().slice(0, 600)
+  lines.push(`\nDescription:\n${desc}${p.description.length > 600 ? "…" : ""}`)
+
+  return lines.join("\n")
+}
+
+// ─────────────────────────────────────────────
+// SYSTEM PROMPT
+// ─────────────────────────────────────────────
+
+function buildSystemPrompt(productContext: string, userName: string): string {
+  return `You are a helpful product advisor for Truevenix, a Nigerian electronics and solar energy e-commerce store. You are answering questions from a signed-in customer named ${userName}.
+
+Your role is to help customers understand the product they are viewing so they can make a confident buying decision.
+
+PRODUCT BEING DISCUSSED:
+${productContext}
+
+GUIDELINES:
+- Answer only questions related to this product or closely related topics (compatibility, use cases, comparisons with similar products on Truevenix, installation advice for solar/inverter products, etc.).
+- Be honest. If you do not know something or the product data does not cover it, say so clearly and suggest the customer contact Truevenix support.
+- Keep answers concise — 2 to 4 short paragraphs maximum. Customers are often on mobile.
+- Use simple, friendly English. Avoid jargon unless the customer uses it first.
+- Prices are in Nigerian Naira (₦). The store is based in Nigeria.
+- Never make up specifications or features not listed in the product data above.
+- If a question is completely unrelated to this product or Truevenix, politely redirect.
+- Do not discuss competitors' prices or make promises about Truevenix policies you are not certain of.`
+}
+
+// ─────────────────────────────────────────────
+// TRUNCATION HANDLER
+//
+// When Claude hits MAX_OUTPUT_TOKENS mid-sentence (stop_reason: "max_tokens"),
+// we make one small follow-up call asking it to finish its thought in a single
+// sentence. The user always receives a complete, natural-feeling response —
+// never a mid-sentence cutoff or an error message about token limits.
+// ─────────────────────────────────────────────
+
+async function completeTruncatedResponse(
+  client: Anthropic,
+  systemPrompt: string,
+  turnMessages: Anthropic.MessageParam[],
+  partial: string
+): Promise<string> {
+  try {
+    const completion = await client.messages.create({
+      model:      MODEL,
+      max_tokens: COMPLETION_TOKENS,
+      system:     systemPrompt,
+      messages: [
+        ...turnMessages,
+        { role: "assistant" as const, content: partial },
+        {
+          role:    "user" as const,
+          content: "Complete your previous answer in one concise sentence. Do not repeat anything already said.",
+        },
+      ],
+    })
+
+    const tail = completion.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("")
+
+    return partial + " " + tail
+  } catch {
+    // If the completion call itself fails, return the partial text as-is.
+    // Still better than showing an error to the user.
+    return partial
+  }
+}
+
+// ─────────────────────────────────────────────
+// ROUTE HANDLER
+// ─────────────────────────────────────────────
+
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+
+type ConversationMessage = {
+  role: "user" | "assistant"
+  content: string
+}
+
+type RequestBody = {
+  message: string
+  product: ProductContext
+  history: ConversationMessage[]
+}
+
+export async function POST(req: NextRequest) {
+  // ── 1. Auth guard — must be signed in ──
+  const session = await auth()
+
+  if (!session?.user?.id || !session.user.email) {
+    return NextResponse.json(
+      { error: "You must be signed in to use the AI assistant." },
+      { status: 401 }
+    )
+  }
+
+  const userId   = session.user.id
+  const userName = session.user.name ?? "Customer"
+
+  // ── 2. Daily usage limit (persisted in Postgres) ──
+  const { allowed, remaining } = await checkAndIncrementDailyLimit(userId)
+  if (!allowed) {
+    return NextResponse.json(
+      {
+        error: `You've used today's ${DAILY_MESSAGE_LIMIT} free questions for the AI assistant. Please come back tomorrow.`,
+      },
+      { status: 429 }
+    )
+  }
+
+  // ── 3. Parse and validate request body ──
+  let body: RequestBody
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 })
+  }
+
+  const { message, product, history } = body
+
+  if (!message || typeof message !== "string") {
+    return NextResponse.json({ error: "Message is required." }, { status: 400 })
+  }
+
+  if (!product || typeof product !== "object") {
+    return NextResponse.json({ error: "Product context is required." }, { status: 400 })
+  }
+
+  // ── 4. Sanitise user input ──
+  const cleanMessage = sanitiseInput(message)
+  if (cleanMessage.length === 0) {
+    return NextResponse.json({ error: "Message cannot be empty." }, { status: 400 })
+  }
+
+  // ── 5. Validate and sanitise product fields (never trust client data for prompt) ──
+  const safeProduct: ProductContext = {
+    name:          String(product.name ?? "").slice(0, 200),
+    brand:         product.brand ? String(product.brand).slice(0, 100) : null,
+    category:      String(product.category ?? "").slice(0, 100),
+    subCategory:   product.subCategory ? String(product.subCategory).slice(0, 100) : null,
+    price:         Number(product.price) || 0,
+    originalPrice: product.originalPrice ? Number(product.originalPrice) : null,
+    warranty:      product.warranty ? String(product.warranty).slice(0, 100) : null,
+    inStock:       Boolean(product.inStock),
+    description:   String(product.description ?? "").slice(0, 2000),
+    keyFeatures:   Array.isArray(product.keyFeatures)
+                     ? product.keyFeatures
+                         .filter((f): f is string => typeof f === "string")
+                         .slice(0, 20)
+                         .map((f) => f.slice(0, 200))
+                     : null,
+    specifications: typeof product.specifications === "object" && product.specifications !== null
+                     ? Object.fromEntries(
+                         Object.entries(product.specifications as Record<string, unknown>)
+                           .slice(0, 30)
+                           .map(([k, v]) => [String(k).slice(0, 100), String(v).slice(0, 200)])
+                       )
+                     : {},
+  }
+
+  // ── 6. Build conversation history (trim to last N turns) ──
+  const safeHistory: ConversationMessage[] = (Array.isArray(history) ? history : [])
+    .filter(
+      (m): m is ConversationMessage =>
+        (m.role === "user" || m.role === "assistant") &&
+        typeof m.content === "string" &&
+        m.content.length > 0
+    )
+    .slice(-MAX_HISTORY_TURNS)
+    .map((m) => ({
+      role:    m.role,
+      content: m.content.slice(0, 1000), // cap each historical message
+    }))
+
+  // ── 7. Build Anthropic messages array ──
+  const messages: Anthropic.MessageParam[] = [
+    ...safeHistory,
+    { role: "user", content: cleanMessage },
+  ]
+
+  // ── 8. Call Anthropic ──
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) {
+    console.error("[AI Ask] ANTHROPIC_API_KEY is not set")
+    return NextResponse.json(
+      { error: "AI service is temporarily unavailable. Please try again later." },
+      { status: 503 }
+    )
+  }
+
+  const client = new Anthropic({ apiKey })
+
+  // The web_search tool lets Claude fetch live information when the product
+  // data does not fully answer the customer's question.
+  const tools: Anthropic.Tool[] = [
+    {
+      type: "web_search_20250305" as Anthropic.Tool["type"],
+      name: "web_search",
+      // @ts-expect-error — web_search_20250305 is a server tool; no input_schema needed
+      max_uses: MAX_TOOL_ROUNDS,
+    },
+  ]
+
+  const systemPrompt = buildSystemPrompt(buildProductContext(safeProduct), userName)
+  const encoder      = new TextEncoder()
+
+  try {
+    // ── Agentic loop ──────────────────────────────────────────────────────
+    // Claude may call web_search one or more times before writing its final
+    // text reply. We run turns until we get a stop_reason of "end_turn" (or
+    // we hit MAX_TOOL_ROUNDS as a safety cap), then stream the final text.
+    // ─────────────────────────────────────────────────────────────────────
+
+    let turnMessages: Anthropic.MessageParam[] = [...messages]
+    let finalText    = ""
+    let toolRounds   = 0
+
+    // Phase 1 — agentic tool rounds (non-streaming)
+    while (toolRounds < MAX_TOOL_ROUNDS) {
+      const response = await client.messages.create({
+        model:      MODEL,
+        max_tokens: MAX_OUTPUT_TOKENS,
+        system:     systemPrompt,
+        tools,
+        messages:   turnMessages,
+      })
+
+      // ── Clean end — Claude finished naturally ──
+      if (response.stop_reason === "end_turn") {
+        finalText = response.content
+          .filter((b): b is Anthropic.TextBlock => b.type === "text")
+          .map((b) => b.text)
+          .join("")
+        break
+      }
+
+      // ── Truncated — Claude ran out of tokens mid-response ──
+      // We silently complete the thought so the user never sees a cutoff.
+      if (response.stop_reason === "max_tokens") {
+        const partial = response.content
+          .filter((b): b is Anthropic.TextBlock => b.type === "text")
+          .map((b) => b.text)
+          .join("")
+
+        finalText = await completeTruncatedResponse(
+          client,
+          systemPrompt,
+          turnMessages,
+          partial
+        )
+        break
+      }
+
+      // ── Tool use — Claude wants to search the web ──
+      if (response.stop_reason === "tool_use") {
+        toolRounds++
+
+        // Append Claude's tool-use turn to the conversation
+        turnMessages = [
+          ...turnMessages,
+          { role: "assistant" as const, content: response.content },
+        ]
+
+        // Build tool_result blocks for every tool_use block in this turn
+        const toolResults: Anthropic.ToolResultBlockParam[] = response.content
+          .filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use")
+          .map((b) => ({
+            type:        "tool_result" as const,
+            tool_use_id: b.id,
+            // web_search handles its own execution server-side; we return empty
+            // content so the loop continues — Anthropic fills in the results.
+            content: "",
+          }))
+
+        if (toolResults.length > 0) {
+          turnMessages = [
+            ...turnMessages,
+            { role: "user" as const, content: toolResults },
+          ]
+        }
+
+        continue
+      }
+
+      // ── Any other stop reason — use whatever text we have ──
+      finalText = response.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map((b) => b.text)
+        .join("")
+      break
+    }
+
+    // If after all tool rounds we still have no text, ask Claude directly
+    // without tools as a final fallback (prevents empty response to user)
+    if (!finalText) {
+      const fallback = await client.messages.create({
+        model:      MODEL,
+        max_tokens: MAX_OUTPUT_TOKENS,
+        system:     systemPrompt,
+        messages:   turnMessages,
+      })
+
+      const fallbackStopReason = fallback.stop_reason
+      const fallbackPartial    = fallback.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map((b) => b.text)
+        .join("")
+
+      // Handle truncation in the fallback call too
+      finalText = fallbackStopReason === "max_tokens"
+        ? await completeTruncatedResponse(client, systemPrompt, turnMessages, fallbackPartial)
+        : fallbackPartial
+    }
+
+    // Phase 2 — stream the final text to the client word-by-word
+    const readable = new ReadableStream({
+      start(controller) {
+        try {
+          // Simulate streaming by chunking the completed text into ~3-word pieces.
+          // This gives the typewriter effect even though the text is already complete
+          // from the tool-use rounds above.
+          const words  = finalText.split(" ")
+          const chunks: string[] = []
+
+          for (let i = 0; i < words.length; i += 3) {
+            chunks.push(words.slice(i, i + 3).join(" ") + (i + 3 < words.length ? " " : ""))
+          }
+
+          let idx = 0
+          const flush = () => {
+            if (idx >= chunks.length) {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`))
+              controller.close()
+              return
+            }
+            const data = JSON.stringify({ delta: chunks[idx++] })
+            controller.enqueue(encoder.encode(`data: ${data}\n\n`))
+            // ~20ms per chunk → smooth typewriter at ~150 wpm
+            setTimeout(flush, 20)
+          }
+          flush()
+        } catch (streamError) {
+          console.error("[AI Ask] Stream error:", streamError)
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({ error: "Stream interrupted. Please try again." })}\n\n`
+            )
+          )
+          controller.close()
+        }
+      },
+    })
+
+    return new Response(readable, {
+      headers: {
+        "Content-Type":  "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection:      "keep-alive",
+        "X-Content-Type-Options":      "nosniff",
+        "X-Frame-Options":             "DENY",
+        "X-Daily-Questions-Remaining": String(remaining),
+      },
+    })
+  } catch (error) {
+    console.error("[AI Ask] Anthropic API error:", error)
+    return NextResponse.json(
+      { error: "Unable to reach the AI service right now. Please try again in a moment." },
+      { status: 502 }
+    )
+  }
+}
+
+// Block all other methods
+export async function GET()    { return NextResponse.json({ error: "Method not allowed" }, { status: 405 }) }
+export async function PUT()    { return NextResponse.json({ error: "Method not allowed" }, { status: 405 }) }
+export async function DELETE() { return NextResponse.json({ error: "Method not allowed" }, { status: 405 }) }

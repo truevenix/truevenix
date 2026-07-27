@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────────
+   FONT VARIABLE
+   Plus Jakarta Sans is loaded via next/font and
+   injected as --font-plus-jakarta on <html>.
+   We alias it here so Tailwind's font-sans and
+   every raw CSS rule both pick it up.
+───────────────────────────────────────────── */
+:root {
+  --font-sans: var(--font-plus-jakarta), "Plus Jakarta Sans", system-ui,
+    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --background: #ffffff;
+  --foreground: #171717;
+  --muted-foreground: #6b7280;
+
+  --primary: #EA580C;
+  --primary-foreground: #ffffff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  /* Make Tailwind's font-sans resolve to Plus Jakarta Sans */
+  --font-sans: var(--font-plus-jakarta), "Plus Jakarta Sans", system-ui,
+    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), "Geist Mono", "Fira Code", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+    --muted-foreground: #9ca3af;
+    --primary: #fb6a1a;
+  }
+}
+
+/* ─────────────────────────────────────────────
+   GLOBAL FONT APPLICATION
+   Every visible text element inherits Plus Jakarta Sans.
+   font-feature-settings enables:
+     "kern" → better kerning pairs
+     "liga" → standard ligatures
+     "calt" → contextual alternates (e.g. ->)
+───────────────────────────────────────────── */
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.6;
+  font-weight: 400;
+}
+
+/* Headings — tight tracking, strong weight */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+h1 { font-size: clamp(1.75rem, 4vw, 2.75rem); }
+h2 { font-size: clamp(1.4rem, 3vw, 2.1rem);   }
+h3 { font-size: clamp(1.15rem, 2.5vw, 1.5rem); }
+h4 { font-size: 1.15rem; }
+h5 { font-size: 1rem;    }
+h6 { font-size: 0.9rem;  }
+
+/* Body text */
+p {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  line-height: 1.7;
+}
+
+/* Inline elements */
+span, a, label, li, td, th, caption,
+blockquote, cite, figcaption, legend,
+strong, em, b, i, small, mark, del, ins, sub, sup {
+  font-family: var(--font-sans);
+}
+
+/* Stronger weight for strong/b — Jakarta's 700 reads beautifully */
+strong, b {
+  font-weight: 700;
+}
+
+/* Buttons & inputs inherit the font */
+button, input, select, textarea, optgroup {
+  font-family: var(--font-sans);
+  font-size: inherit;
+}
+
+/* Navigation elements */
+nav, nav a, nav button, nav span {
+  font-family: var(--font-sans);
+}
+
+/* Price & numeric data — tabular nums for aligned columns */
+.price, .badge, [data-price], .tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "kern" 1, "tnum" 1;
+}
+
+/* ─────────────────────────────────────────────
+   LEGACY UTILITY (kept for backward compat)
+   .hero-font now also just uses Plus Jakarta Sans
+   with the heaviest weight for maximum impact.
+───────────────────────────────────────────── */
+.hero-font {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
