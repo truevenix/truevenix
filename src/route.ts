@@ -16,6 +16,7 @@ export const publicRoutes = [
     "/api/paystack/initialize",
       "/api/verify-payment",
       "/api/ai/ask",
+       "/api/v1/[[...route]]",
     "/blog/[id]",
     "/shop",
     "/checkout",

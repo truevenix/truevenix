@@ -48,7 +48,7 @@ const publicRoutes = [
     "/api/mobile-auth/me",
     "/api/foods",
     "/api/rooms",
-  "/api/v1/escrow",
+  "/api/v1/[[...route]]",
   "/api/ai/ask",
   "/sitemap",
   "/sitemap.xml",
