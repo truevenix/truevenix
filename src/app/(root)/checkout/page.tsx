@@ -5,7 +5,7 @@ import Image from "next/image"
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useMutation } from "@tanstack/react-query"
-import {ArrowLeft, CheckCircle2, CreditCard, Mail, MapPin, Package, Phone, User, Loader2, AlertCircle, Check, Truck, Lock, LogIn, Plus, Edit2, Home, Briefcase,} from "lucide-react"
+import {ArrowLeft, CheckCircle2, CreditCard, Mail, MapPin, Package, Phone, User, Loader2, AlertCircle, Check, Truck, Lock, LogIn, Plus, Edit2, Home, Briefcase, Tag, X,} from "lucide-react"
 import { toast } from "sonner"
 import { formatPrice, useCart } from "@/context/cart-context"
 import { useCurrentUserWithStatus } from "@/hooks/use-current-user"
@@ -459,8 +459,57 @@ export default function CheckoutPage() {
   const { items, totalItems, totalPrice, deliveryFee, clearCart } = useCart()
   const { pendingAddress, activeAddress } = useDeliveryAddress()
 
-  // Grand total = subtotal + delivery (no promo on checkout page — applied on cart page)
-  const grandTotal = totalPrice + deliveryFee
+  // ── Promo code ──────────────────────────────────────────────────────────
+  // Applied here on checkout (not the cart page) — mirrors the Expo app flow.
+  const [promoInput, setPromoInput] = useState("")
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; percentage: number } | null>(null)
+  const [promoError, setPromoError] = useState("")
+  const [isValidatingPromo, setIsValidatingPromo] = useState(false)
+
+  const discountAmount = appliedPromo ? Math.round((totalPrice * appliedPromo.percentage) / 100) : 0
+
+  // Grand total = subtotal - promo discount + delivery
+  const grandTotal = totalPrice - discountAmount + deliveryFee
+
+  const validatePromo = async () => {
+    const code = promoInput.trim()
+    if (!code) {
+      setPromoError("Enter a promo code")
+      return
+    }
+
+    setIsValidatingPromo(true)
+    setPromoError("")
+    try {
+      const res = await fetch("/api/promo/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      })
+      const data = await res.json()
+
+      if (!res.ok || !data.valid) {
+        setAppliedPromo(null)
+        setPromoError(data.message || "That promo code is not active.")
+        return
+      }
+
+      setAppliedPromo({ code: data.code, percentage: data.percentage })
+      setPromoInput(data.code)
+      toast.success(`Promo applied — ${data.percentage}% off!`)
+    } catch {
+      setAppliedPromo(null)
+      setPromoError("Could not check that code. Please try again.")
+    } finally {
+      setIsValidatingPromo(false)
+    }
+  }
+
+  const removePromo = () => {
+    setAppliedPromo(null)
+    setPromoInput("")
+    setPromoError("")
+  }
 
   const [formErrors, setFormErrors] = useState<Partial<Record<string, string>>>({})
 
@@ -688,6 +737,7 @@ export default function CheckoutPage() {
           address: selectedAddr ? formatAddressLine(selectedAddr) : "",
           paymentMethod: form.paymentMethod,
           deliveryFee,
+          promoCode: appliedPromo?.code || undefined,
           items: checkoutItems,
         }),
       })
@@ -1180,6 +1230,13 @@ export default function CheckoutPage() {
                     </p>
                   )}
 
+                  {appliedPromo && (
+                    <div className="flex items-center justify-between text-emerald-600">
+                      <span>Promo ({appliedPromo.code})</span>
+                      <span className="font-bold">- {formatPrice(discountAmount)}</span>
+                    </div>
+                  )}
+
                   <div
                     className="flex items-center justify-between border-t pt-3"
                     style={{
@@ -1194,6 +1251,69 @@ export default function CheckoutPage() {
                       {formatPrice(grandTotal)}
                     </span>
                   </div>
+                </div>
+
+                {/* Promo code */}
+                <div className="mt-4 space-y-2">
+                  {appliedPromo ? (
+                    <div
+                      className="flex items-center justify-between rounded-xl px-3.5 py-2.5"
+                      style={{
+                        backgroundColor: "color-mix(in srgb, var(--theme-primary) 6%, white)",
+                        border: "1px solid color-mix(in srgb, var(--theme-primary) 20%, transparent)",
+                      }}
+                    >
+                      <span className="flex items-center gap-2 text-xs font-bold text-gray-700">
+                        <Tag size={13} style={{ color: "var(--theme-primary)" }} />
+                        {appliedPromo.code} applied — {appliedPromo.percentage}% off
+                      </span>
+                      <button
+                        type="button"
+                        onClick={removePromo}
+                        className="flex h-6 w-6 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                        aria-label="Remove promo code"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex gap-2">
+                        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border-2 px-3.5 py-1" style={{ borderColor: "hsl(var(--border))" }}>
+                          <Tag size={14} className="flex-shrink-0 text-gray-400" />
+                          <input
+                            value={promoInput}
+                            onChange={(e) => {
+                              setPromoInput(e.target.value)
+                              setPromoError("")
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault()
+                                validatePromo()
+                              }
+                            }}
+                            placeholder="Promo code"
+                            className="h-9 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={validatePromo}
+                          disabled={isValidatingPromo}
+                          className="shrink-0 rounded-xl px-4 text-sm font-bold text-white transition-all disabled:opacity-60"
+                          style={{ backgroundColor: "var(--theme-primary)" }}
+                        >
+                          {isValidatingPromo ? <Loader2 size={14} className="animate-spin" /> : "Apply"}
+                        </button>
+                      </div>
+                      {promoError && (
+                        <p className="flex items-center gap-1 text-xs font-bold text-red-500">
+                          <AlertCircle size={11} /> {promoError}
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 {/* Delivering-to preview */}

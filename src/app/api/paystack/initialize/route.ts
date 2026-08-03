@@ -40,6 +40,7 @@ type InitializePayload = {
   customerPhone?: string
   address?: string
   paymentMethod?: string
+  promoCode?: string
   items?: CheckoutItemInput[]
 }
 
@@ -161,9 +162,39 @@ export async function POST(req: NextRequest) {
       }
     })
 
-    const amount = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
+    const subtotal = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
     const referenceId = orderReference()
     const paymentMethod = body?.paymentMethod?.trim() || "paystack"
+
+    // ── Step 2b: Validate promo code (server is the source of truth — never ──
+    // trust a discount amount computed on the client) ────────────────────────
+
+    let appliedPromo: { id: string; code: string; percentage: number } | null = null
+    let discountAmount = 0
+
+    const rawPromoCode = body?.promoCode?.trim()
+    if (rawPromoCode) {
+      const promoCode = rawPromoCode.toUpperCase()
+      const promo = await db.promoCode.findUnique({ where: { code: promoCode } })
+
+      if (!promo) {
+        return NextResponse.json({ error: "Invalid promo code" }, { status: 400 })
+      }
+      if (!promo.isActive) {
+        return NextResponse.json({ error: "This promo code is no longer active" }, { status: 400 })
+      }
+      if (promo.expiresAt && promo.expiresAt < new Date()) {
+        return NextResponse.json({ error: "This promo code has expired" }, { status: 400 })
+      }
+      if (promo.usageLimit && promo.usageCount >= promo.usageLimit) {
+        return NextResponse.json({ error: "This promo code has reached its usage limit" }, { status: 400 })
+      }
+
+      appliedPromo = { id: promo.id, code: promo.code, percentage: promo.percentage }
+      discountAmount = Math.round((subtotal * promo.percentage) / 100)
+    }
+
+    const amount = Math.max(subtotal - discountAmount, 0)
 
     // ── Step 3: Create the order ────────────────────────────────────────────
 
@@ -178,6 +209,11 @@ export async function POST(req: NextRequest) {
       status: paymentMethod === "pay-on-delivery" ? "PENDING" : "AWAITING_PAYMENT",
       paymentMethod,
       referenceId,
+      ...(appliedPromo && {
+        promoCode: appliedPromo.code,
+        discountPercent: appliedPromo.percentage,
+        discountAmount,
+      }),
       orderItems: {
         create: orderItems,
       },
@@ -201,6 +237,13 @@ export async function POST(req: NextRequest) {
       data: orderData,
       include: orderInclude,
     })
+
+    if (appliedPromo) {
+      await db.promoCode.update({
+        where: { id: appliedPromo.id },
+        data: { usageCount: { increment: 1 } },
+      }).catch((err) => console.error("[paystack/initialize] promo usage increment failed:", err))
+    }
 
     // Prepared once, used by whichever return path fires below
     const orderCreatedEmailItems = orderItems.map((item) => ({
@@ -359,6 +402,7 @@ export async function POST(req: NextRequest) {
 //   customerPhone?: string
 //   address?: string
 //   paymentMethod?: string
+//   promoCode?: string
 //   items?: CheckoutItemInput[]
 // }
 
@@ -381,8 +425,6 @@ export async function POST(req: NextRequest) {
 //     const items = body?.items ?? []
 
 //     // ── Step 1: Resolve identity ────────────────────────────────────────────
-//     // Priority: active session > guest email matching a real account > pure guest
-
 //     const session = await auth().catch(() => null)
 
 //     let resolvedUserId: string | null = session?.user?.id ?? null
@@ -415,7 +457,6 @@ export async function POST(req: NextRequest) {
 //         customerEmail = inputEmail
 //       }
 //     } else {
-//       // Authenticated user: use account email if none provided
 //       if (!customerEmail) {
 //         const accountUser = await db.user.findUnique({
 //           where: { id: resolvedUserId },
@@ -524,36 +565,47 @@ export async function POST(req: NextRequest) {
 //       include: orderInclude,
 //     })
 
-//     // Fire and forget — never block the checkout response
-// const orderCreatedEmailItems = orderItems.map((item) => ({
-//   name: item.name,
-//   quantity: item.quantity,
-//   price: item.price,
-//   subtotal: item.price * item.quantity,
-//   variant: item.imageColor && item.imageColor !== "Default" ? item.imageColor : undefined,
-// }));
+//     // Prepared once, used by whichever return path fires below
+//     const orderCreatedEmailItems = orderItems.map((item) => ({
+//       name: item.name,
+//       quantity: item.quantity,
+//       price: item.price,
+//       subtotal: item.price * item.quantity,
+//       variant: item.imageColor && item.imageColor !== "Default" ? item.imageColor : undefined,
+//     }))
 
-// sendOrderCreatedEmails({
-//   customerName: body?.customerName?.trim() || "Customer",
-//   customerEmail,
-//   customerPhone: body?.customerPhone?.trim() || null,
-//   orderReference: referenceId,
-//   items: orderCreatedEmailItems,
-//   totalAmount: amount,
-//   paymentMethod,
-// }).catch((err) => console.error("[paystack/initialize] order created email failed:", err));
+//     const sendAckEmail = () =>
+//       sendOrderCreatedEmails({
+//         customerName: body?.customerName?.trim() || "Customer",
+//         customerEmail,
+//         customerPhone: body?.customerPhone?.trim() || null,
+//         orderReference: referenceId,
+//         items: orderCreatedEmailItems,
+//         totalAmount: amount,
+//         paymentMethod,
+//       }).catch((err: { message: any; stack: any }) => {
+//         console.error("[paystack/initialize] order created email failed:", err)
+//         console.error("[paystack/initialize] email error details:", {
+//           message: err?.message,
+//           stack: err?.stack,
+//           customerEmail,
+//           orderReference: referenceId,
+//         })
+//       })
 
 //     // ── Step 4: Pay-on-delivery skips Paystack entirely ─────────────────────
 
 //     if (paymentMethod === "pay-on-delivery") {
+//       await sendAckEmail()
 //       return NextResponse.json({ order }, { status: 201 })
 //     }
 
-//     // ── Step 5: Initialize Paystack transaction ─────────────────────────────
+//     // ── Step 5: Initialize Paystack transaction (critical path, runs first) ──
 
 //     const paystackSecret = process.env.PAYSTACK_SECRET
 
 //     if (!paystackSecret) {
+//       await sendAckEmail()
 //       return NextResponse.json({
 //         order,
 //         payment: {
@@ -577,7 +629,7 @@ export async function POST(req: NextRequest) {
 //         email: customerEmail,
 //         amount: Math.round(amount * 100),
 //         reference: order.referenceId,
-//         callback_url: `${origin}/orders?email=${encodeURIComponent(customerEmail)}`,
+//         callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success?orderId=${order.id}`,
 //         metadata: {
 //           orderId: order.id,
 //           customerName: order.customerName,
@@ -595,6 +647,7 @@ export async function POST(req: NextRequest) {
 //         where: { id: order.id },
 //         data: { status: "FAILED" },
 //       })
+//       // Payment failed to initialize — don't send a "your order was received" email
 //       return NextResponse.json({ error: paymentData.message || "Unable to initialize payment." }, { status: 502 })
 //     }
 
@@ -605,6 +658,10 @@ export async function POST(req: NextRequest) {
 //         paymentUrl: paymentData.data.authorization_url,
 //       },
 //     })
+
+//     // ── Step 6: Payment initialized successfully — send the acknowledgement email last ──
+
+//     await sendAckEmail()
 
 //     return NextResponse.json({
 //       order,
@@ -620,3 +677,4 @@ export async function POST(req: NextRequest) {
 //     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
 //   }
 // }
+

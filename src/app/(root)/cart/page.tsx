@@ -1,8 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
-import { ArrowLeft, ArrowRight, MapPin, Minus, Plus, RotateCcw, Shield, ShoppingBag, ShoppingCart, Tag, Trash2, Truck } from "lucide-react"
+import { ArrowLeft, ArrowRight, MapPin, Minus, Plus, RotateCcw, Shield, ShoppingBag, ShoppingCart, Trash2, Truck } from "lucide-react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { formatPrice, useCart } from "@/context/cart-context"
@@ -12,11 +11,6 @@ const trustItems = [
   { icon: Shield, label: "Secure checkout", sub: "Card or pay on delivery" },
   { icon: RotateCcw, label: "Easy help", sub: "Support after purchase" },
 ]
-
-const promoCodes: Record<string, number> = {
-  truevenix10: 0.1,
-  TECH5: 0.05,
-}
 
 export default function CartPage() {
   const {
@@ -31,27 +25,7 @@ export default function CartPage() {
     setIsAbujaResident,
   } = useCart()
 
-  const [promoCode, setPromoCode] = useState("")
-  const [appliedRate, setAppliedRate] = useState(0)
-  const [promoError, setPromoError] = useState("")
-
-  const discount = totalPrice * appliedRate
-  const total = totalPrice - discount + deliveryFee
-
-  const applyPromo = () => {
-    const code = promoCode.trim().toUpperCase()
-    const rate = promoCodes[code]
-
-    if (!rate) {
-      setAppliedRate(0)
-      setPromoError("That promo code is not active.")
-      return
-    }
-
-    setPromoCode(code)
-    setAppliedRate(rate)
-    setPromoError("")
-  }
+  const total = totalPrice + deliveryFee
 
   if (items.length === 0) {
     return (
@@ -189,14 +163,6 @@ export default function CartPage() {
                   <span className="font-bold text-gray-900">{formatPrice(totalPrice)}</span>
                 </div>
 
-                {/* Promo discount */}
-                {discount > 0 && (
-                  <div className="flex justify-between text-emerald-600">
-                    <span>Promo</span>
-                    <span className="font-bold">- {formatPrice(discount)}</span>
-                  </div>
-                )}
-
                 {/* Delivery row */}
                 <div className="flex justify-between text-gray-500">
                   <span>Delivery</span>
@@ -246,37 +212,12 @@ export default function CartPage() {
                 </div>
               </div>
 
-              {/* Promo code */}
-              <div className="mt-5 space-y-2">
-                <div className="flex gap-2">
-                  <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3">
-                    <Tag size={14} className="flex-shrink-0 text-gray-400" />
-                    <input
-                      value={promoCode}
-                      onChange={(e) => {
-                        setPromoCode(e.target.value)
-                        setPromoError("")
-                      }}
-                      placeholder="Promo code"
-                      className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none"
-                    />
-                  </div>
-                  <Button type="button" onClick={applyPromo}>
-                    Apply
-                  </Button>
-                </div>
-                {promoError && (
-                  <p className="text-xs font-bold text-red-500">{promoError}</p>
-                )}
-                {appliedRate > 0 && (
-                  <p className="text-xs font-bold text-emerald-600">
-                    Promo applied — {appliedRate * 100}% off!
-                  </p>
-                )}
-              </div>
+              <p className="mt-4 text-center text-xs text-gray-400">
+                Have a promo code? Add it at checkout.
+              </p>
 
               {/* CTA */}
-              <Button asChild className="mt-5 w-full">
+              <Button asChild className="mt-3 w-full">
                 <Link href="/checkout">
                   Proceed to checkout
                   <ArrowRight size={16} />

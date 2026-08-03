@@ -36,6 +36,7 @@ const publicRoutes = [
   "/room/[id]",
   "/shop",
   "/api/flutterwave/webhook",
+
   "/api/products/getFeaturedProducts",
   "/api/products/getProducts",
   "/api/products/getProduct",
@@ -46,7 +47,7 @@ const publicRoutes = [
     "/api/mobile-auth/verify",
     "/api/mobile-auth/reset",
     "/api/mobile-auth/me",
-    "/api/foods",
+    "/api/mobile/promo",
     "/api/rooms",
   "/api/v1/[[...route]]",
   "/api/ai/ask",

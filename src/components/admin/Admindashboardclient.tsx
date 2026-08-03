@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { BarChart3, Boxes, Pencil, Plus, Search, ShoppingCart, Trash2, Truck, Users } from "lucide-react"
+import { BarChart3, Boxes, Pencil, Plus, Search, ShoppingCart, Ticket, Trash2, Truck, Users } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -183,10 +183,18 @@ export default function AdminDashboardClient({ data }: { data: AdminData }) {
               <p className="text-xs font-black uppercase tracking-widest text-slate-400">truevenix admin</p>
               <h1 className="mt-1 text-2xl font-black text-slate-950 md:text-3xl">Product control room</h1>
             </div>
-            <Button onClick={() => setModal({ category: "gadgets" })} className="gap-2">
-              <Plus size={16} />
-              Add Product
-            </Button>
+            <div className="flex gap-2">
+              <Button asChild variant="outline" className="gap-2">
+                <Link href="/admin/promo-codes">
+                  <Ticket size={16} />
+                  Promo codes
+                </Link>
+              </Button>
+              <Button onClick={() => setModal({ category: "gadgets" })} className="gap-2">
+                <Plus size={16} />
+                Add Product
+              </Button>
+            </div>
           </div>
 
           <div className="flex gap-2 overflow-x-auto">
