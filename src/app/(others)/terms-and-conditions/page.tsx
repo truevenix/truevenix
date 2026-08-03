@@ -94,11 +94,7 @@ export default function TermsAndConditionsPage() {
         {/* Quick reference strip */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
-            {
-              icon: Users,
-              title: "18+ Only",
-              desc: "You must be at least 18 years old to create an account or place any order",
-            },
+          
             {
               icon: Globe,
               title: "Nigeria Only",
@@ -156,10 +152,10 @@ export default function TermsAndConditionsPage() {
 
         {/* 2. Eligibility & Account */}
         <Card>
-          <SectionHeading number="2" title="Eligibility & Account Registration" />
+          <SectionHeading number="2" title=" Account Registration" />
           <ul className="flex flex-col gap-1.5">
             {[
-              "You must be at least 18 years old to register, make a purchase, or place an order on our platform.",
+             
               "When creating an account, you agree to provide accurate, current, and complete information and to keep it up to date.",
               "You are solely responsible for maintaining the confidentiality of your login credentials and for all activity that occurs under your account.",
               "Notify us immediately at support@truevenix.com if you suspect any unauthorised use of your account.",
