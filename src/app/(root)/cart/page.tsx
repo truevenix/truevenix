@@ -207,14 +207,11 @@ export default function CartPage() {
 
                 {/* Total */}
                 <div className="flex justify-between border-t border-gray-100 pt-3 text-lg font-black">
-                  <span>Total</span>
+                  <span className="text-gray-400">Total</span>
                   <span className="text-[var(--theme-primary)]">{formatPrice(total)}</span>
                 </div>
               </div>
 
-              <p className="mt-4 text-center text-xs text-gray-400">
-                Have a promo code? Add it at checkout.
-              </p>
 
               {/* CTA */}
               <Button asChild className="mt-3 w-full">

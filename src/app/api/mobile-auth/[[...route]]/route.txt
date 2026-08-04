@@ -1,3 +1,6 @@
+
+
+
 // src/app/api/mobile-auth/[[...route]]/route.ts
 
 import { Hono } from "hono"
@@ -10,10 +13,17 @@ import crypto from "crypto"
 import { db } from "@/lib/db"
 import { verifyMobileToken } from "@/lib/verifyMobileToken"
 import { sendMobileVerificationCodeEmail, sendMobilePasswordResetCodeEmail } from "@/lib/mail"
+import { OAuth2Client } from "google-auth-library"
 
 export const runtime = "nodejs"
 
 const JWT_SECRET = new TextEncoder().encode(process.env.MOBILE_JWT_SECRET!)
+
+// ─── Google OAuth Client ────────────────────────────────────────────────────
+const googleClient = new OAuth2Client(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET
+)
 
 // ─── Reusable helpers — every route below is built from these ─────────────────
 
@@ -98,6 +108,8 @@ app.use(
     allowHeaders: ["Content-Type", "Authorization"],
   })
 )
+
+// ─── Auth Routes ──────────────────────────────────────────────────────────
 
 app.post("/login", async (c) => {
   const parsed = LoginSchema.safeParse(await c.req.json())
@@ -199,6 +211,104 @@ app.get("/me", async (c) => {
   const user = await requireMobileUser(c)
   if (!user) return fail(c, 401, "Invalid or expired token")
   return c.json({ success: true, data: { user: serializeUser(user) } })
+})
+
+// ─── Google OAuth Endpoint ──────────────────────────────────────────────
+
+app.post("/google", async (c) => {
+  const { idToken } = await c.req.json()
+  
+  if (!idToken) {
+    return fail(c, 400, "No ID token provided")
+  }
+
+  try {
+    // Verify Google ID token
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    })
+
+    const payload = ticket.getPayload()
+    if (!payload) {
+      return fail(c, 401, "Invalid Google token")
+    }
+
+    const { email, name, picture, sub: googleId } = payload
+
+    if (!email) {
+      return fail(c, 400, "Email not provided by Google")
+    }
+
+    // Check if user exists with password field
+    const existingUser = await db.user.findUnique({
+      where: { email },
+      select: { ...USER_SELECT, password: true },
+    })
+
+    let user
+
+    // Case 1: User exists with password (credential user)
+    if (existingUser && existingUser.password) {
+      // Update with Google info
+      user = await db.user.update({
+        where: { email },
+        data: {
+          image: picture || existingUser.image,
+          emailVerified: new Date(),
+        },
+        select: USER_SELECT,
+      })
+    } 
+    // Case 2: User exists but no password (shouldn't happen, but handle it)
+    else if (existingUser && !existingUser.password) {
+      user = existingUser
+    }
+    // Case 3: User doesn't exist - create one
+    else {
+      // Check if Google account already linked to another user
+      const existingAccount = await db.account.findFirst({
+        where: { provider: "google", providerAccountId: googleId },
+      })
+
+      if (existingAccount) {
+        return fail(c, 409, "Google account already linked to another user")
+      }
+
+      // Create new user
+      user = await db.user.create({
+        data: {
+          email,
+          name: name || email.split("@")[0],
+          image: picture || null,
+          emailVerified: new Date(),
+          phoneNumber: null,
+        },
+        select: USER_SELECT,
+      })
+
+      // Link Google account
+      await db.account.create({
+        data: {
+          userId: user.id,
+          provider: "google",
+          providerAccountId: googleId,
+          type: "oauth",
+        },
+      })
+    }
+
+    // Generate JWT token
+    const token = await signMobileToken(user.id)
+
+    return c.json({
+      success: true,
+      data: { token, user: serializeUser(user) },
+    })
+  } catch (error) {
+    console.error("Google auth error:", error)
+    return fail(c, 401, "Google authentication failed")
+  }
 })
 
 export const GET  = handle(app)

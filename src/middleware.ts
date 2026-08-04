@@ -47,7 +47,7 @@ const publicRoutes = [
     "/api/mobile-auth/verify",
     "/api/mobile-auth/reset",
     "/api/mobile-auth/me",
-    "/api/mobile/promo",
+    "/api/promo/validate",
     "/api/rooms",
   "/api/v1/[[...route]]",
   "/api/ai/ask",

@@ -22,6 +22,17 @@ const googleClient = new OAuth2Client(
   process.env.GOOGLE_CLIENT_SECRET
 )
 
+// The Expo app signs in using an Android (and eventually iOS) OAuth client,
+// not the Web client — so the id_token's `aud` claim equals whichever of
+// those client IDs was used on-device, never GOOGLE_CLIENT_ID alone.
+// verifyIdToken accepts an array and passes if the token matches ANY of
+// them, same pattern Firebase Auth uses for multi-platform Google sign-in.
+const GOOGLE_TOKEN_AUDIENCES = [
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_ANDROID_CLIENT_ID,
+  process.env.GOOGLE_IOS_CLIENT_ID,
+].filter((id): id is string => Boolean(id))
+
 // ─── Reusable helpers — every route below is built from these ─────────────────
 
 async function signMobileToken(userId: string) {
@@ -223,7 +234,7 @@ app.post("/google", async (c) => {
     // Verify Google ID token
     const ticket = await googleClient.verifyIdToken({
       idToken,
-      audience: process.env.GOOGLE_CLIENT_ID,
+      audience: GOOGLE_TOKEN_AUDIENCES,
     })
 
     const payload = ticket.getPayload()
