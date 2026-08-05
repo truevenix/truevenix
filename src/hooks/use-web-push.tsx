@@ -6,11 +6,11 @@ import { useCurrentUser } from "@/hooks/use-current-user"
 
 const STORAGE_KEY = "venix:fcmToken"
 
-export type WebPushStatus = 
-  | "unsupported" 
-  | "loading" 
-  | "enabled" 
-  | "disabled" 
+export type WebPushStatus =
+  | "unsupported"
+  | "loading"
+  | "enabled"
+  | "disabled"
   | "denied"
   | "pending" // token exists but no account attached yet
 
@@ -31,28 +31,58 @@ export function useWebPush() {
     }
 
     const savedToken = localStorage.getItem(STORAGE_KEY)
-    
-    // Permission granted + token cached + user logged in → verify server-side
-    if (Notification.permission === "granted" && savedToken && currentUser) {
-      try {
-        const res = await fetch(`/api/save-fcm-token?fcmToken=${encodeURIComponent(savedToken)}`)
-        const data = await res.json().catch(() => null)
-        setStatus(data?.subscribed ? "enabled" : "disabled")
-        if (!data?.subscribed) localStorage.removeItem(STORAGE_KEY)
-      } catch {
-        setStatus("enabled") // Network error, trust local state
+
+    // Permission granted + token cached → verify server-side if logged in
+    if (Notification.permission === "granted" && savedToken) {
+      if (currentUser) {
+        try {
+          const res = await fetch(`/api/save-fcm-token?fcmToken=${encodeURIComponent(savedToken)}`)
+          const data = await res.json().catch(() => null)
+          setStatus(data?.subscribed ? "enabled" : "disabled")
+          if (!data?.subscribed) localStorage.removeItem(STORAGE_KEY)
+        } catch {
+          setStatus("enabled") // Network error, trust local state
+        }
+      } else {
+        setStatus("pending") // Has token + permission, but no account yet
       }
       return
     }
 
-    // Permission granted + token cached + NO user → pending
-    if (Notification.permission === "granted" && savedToken && !currentUser) {
-      setStatus("pending")
+    // Permission granted but NO token cached + user logged in → fetch one now
+    if (Notification.permission === "granted" && !savedToken && currentUser) {
+      setBusy(true)
+      try {
+        const token = await fetchToken()
+        if (token) {
+          localStorage.setItem(STORAGE_KEY, token)
+          const res = await fetch("/api/save-fcm-token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fcmToken: token, platform: "WEB" }),
+          })
+          if (res.ok) {
+            setStatus("enabled")
+            return
+          }
+        }
+        setStatus("disabled")
+      } catch {
+        setStatus("disabled")
+      } finally {
+        setBusy(false)
+      }
       return
     }
 
-    // Fallback
-    setStatus(Notification.permission === "granted" ? "disabled" : "disabled")
+    // Permission granted but NO token + NO user → disabled (user needs to toggle)
+    if (Notification.permission === "granted" && !savedToken && !currentUser) {
+      setStatus("disabled")
+      return
+    }
+
+    // Permission not granted (default/prompt)
+    setStatus("disabled")
   }, [currentUser])
 
   useEffect(() => {
@@ -68,7 +98,9 @@ export function useWebPush() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fcmToken: savedToken, platform: "WEB" }),
       })
-        .then(res => res.ok && setStatus("enabled"))
+        .then(res => {
+          if (res.ok) setStatus("enabled")
+        })
         .catch(() => {}) // Silent fail, checkStatus will reconcile
     }
   }, [currentUser])
@@ -112,13 +144,13 @@ export function useWebPush() {
           const data = await res.json().catch(() => ({}))
           return { ok: false, message: data?.error ?? "Could not save notification settings." }
         }
-        
+
         setStatus("enabled")
       } else {
         // Guest grant — token cached, will attach on next login
         setStatus("pending")
       }
-      
+
       return { ok: true }
     } catch (err) {
       console.error("[use-web-push] enable failed:", err)

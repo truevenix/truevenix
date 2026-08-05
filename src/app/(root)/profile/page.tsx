@@ -22,7 +22,7 @@ import {
 import { AddressModal, type Address, type AddressForm } from "@/components/AddressModal"
 import { useCurrentUser } from "@/hooks/use-current-user"
 import { handleProfileImageSaveToFirebase } from "@/lib/upload"
-import { useWebPush } from "@/hooks/useFcmToken"
+import { useWebPush } from "@/hooks/use-web-push"
 
 // ─── Row item ─────────────────────────────────────────────────────────────────
 
@@ -485,21 +485,24 @@ export default function ProfilePage() {
                 </div>
               </div>
             ) : (
-              <ToggleRow
-                icon={webPush.status === "enabled" ? Bell : BellOff}
-                iconBg="bg-violet-50"
-                iconColor="text-violet-600"
-                label="Push Notifications"
-                sublabel={
-                  webPush.status === "denied"
-                    ? "Blocked — enable in browser settings"
-                    : "Order updates and promo alerts on this device"
-                }
-                checked={webPush.status === "enabled"}
-                disabled={webPush.status === "denied" || webPush.status === "loading"}
-                busy={webPush.busy}
-                onChange={handleTogglePush}
-              />
+              // Find this section in your profile page and update:
+<ToggleRow
+  icon={webPush.status === "enabled" || webPush.status === "pending" ? Bell : BellOff}
+  iconBg="bg-violet-50"
+  iconColor="text-violet-600"
+  label="Push Notifications"
+  sublabel={
+    webPush.status === "denied"
+      ? "Blocked — enable in browser settings"
+      : webPush.status === "pending"
+      ? "Enabled — will link to your account shortly"
+      : "Order updates and promo alerts on this device"
+  }
+  checked={webPush.status === "enabled" || webPush.status === "pending"}
+  disabled={webPush.status === "denied" || webPush.status === "loading"}
+  busy={webPush.busy}
+  onChange={handleTogglePush}
+/>
             )}
           </Card>
 
