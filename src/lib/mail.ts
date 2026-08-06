@@ -324,7 +324,7 @@ function adminRecipients(extra: string[]): string[] {
   return [adminEmail, ...extra].filter(Boolean) as string[];
 }
 
-const DEFAULT_ADMIN_EXTRAS = ["ifeanyi.ripple@gmail.com", "support@truevenix.com"];
+const DEFAULT_ADMIN_EXTRAS = ["support@truevenix.com"];
 
 // ─── Public Send Functions ────────────────────────────────────────────────────
 export async function sendTwoFactorTokenEmail(email: string, token: string) {
