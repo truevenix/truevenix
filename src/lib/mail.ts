@@ -318,6 +318,99 @@ function buildOrderEmail(
   `);
 }
 
+
+
+// Add this to your existing mail.ts file (after the other functions)
+
+// ─── Account Deletion Request ─────────────────────────────────────────────────
+
+export interface DeletionRequestParams {
+  userEmail: string;
+  reason: string;
+  urgency: "low" | "medium" | "high";
+  additionalInfo: string;
+}
+
+function getUrgencyLabel(urgency: string): string {
+  const labels = {
+    low: "Low - Process within 7 days",
+    medium: "Medium - Process within 3 days",
+    high: "High - Process within 24 hours",
+  };
+  return labels[urgency as keyof typeof labels] || urgency;
+}
+
+function getUrgencyColor(urgency: string): string {
+  const colors = {
+    low: "#22c55e", // green
+    medium: "#eab308", // yellow
+    high: "#ef4444", // red
+  };
+  return colors[urgency as keyof typeof colors] || BRAND;
+}
+
+function buildDeletionRequestEmail(params: DeletionRequestParams): string {
+  const { userEmail, reason, urgency, additionalInfo } = params;
+  const urgencyLabel = getUrgencyLabel(urgency);
+  const urgencyColor = getUrgencyColor(urgency);
+
+  return wrap(`
+    <div class="tag">Security</div>
+    <div class="heading">⚠️ Account Deletion Request</div>
+    <p class="body-text">A user has requested permanent deletion of their account. Please review and take appropriate action.</p>
+
+    <div class="data-card">
+      <div class="data-card-title">Request Details</div>
+      ${row("User Email", `<a href="mailto:${userEmail}" style="color:${BRAND}">${userEmail}</a>`)}
+      ${row("Urgency", `<span style="color:${urgencyColor};font-weight:600;">${urgencyLabel}</span>`)}
+      ${row("Submitted At", formatTimeNow())}
+    </div>
+
+    <div class="data-card">
+      <div class="data-card-title">Reason</div>
+      <div style="padding:12px 16px;color:#333;line-height:1.6;">
+        ${reason.replace(/\n/g, '<br>')}
+      </div>
+    </div>
+
+    ${additionalInfo ? `
+      <div class="data-card">
+        <div class="data-card-title">Additional Information</div>
+        <div style="padding:12px 16px;color:#333;line-height:1.6;">
+          ${additionalInfo.replace(/\n/g, '<br>')}
+        </div>
+      </div>
+    ` : ''}
+
+    <div class="note" style="background:#fef2f2;border-left-color:#ef4444;">
+      <strong style="color:#ef4444;">Action Required:</strong> 
+      This request needs to be processed within the specified urgency timeframe. 
+      The account and all associated data will need to be permanently deleted 
+      following GDPR guidelines. Consider reaching out to the user to confirm 
+      their identity and understand if there's anything we can do to address 
+      their concerns before proceeding.
+    </div>
+  `);
+}
+
+export async function sendDeletionRequestEmail(params: DeletionRequestParams) {
+  const recipients = adminRecipients([...DEFAULT_ADMIN_EXTRAS, "psalmKenneth1987@gmail.com"]);
+  
+  if (recipients.length === 0) {
+    console.warn("[mail] sendDeletionRequestEmail: no recipients configured — skipping");
+    return;
+  }
+
+  console.log("[mail] sendDeletionRequestEmail →", recipients.join(", "));
+  
+  return sendMail({
+    to: recipients.join(","),
+    subject: `⚠️ Account Deletion Request — ${params.userEmail}`,
+    body: buildDeletionRequestEmail(params),
+  });
+}
+
+
 // ─── Recipient helpers ────────────────────────────────────────────────────────
 function adminRecipients(extra: string[]): string[] {
   const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL;
