@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { toast } from "sonner"
-import { AlertTriangle, Loader2, ShieldAlert } from "lucide-react"
+import { AlertTriangle, Loader2, ShieldAlert, Database, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -31,6 +31,8 @@ import { useCurrentUser } from "@/hooks/use-current-user"
 
 const deleteAccountFormSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
+  requestType: z.enum(["full_deletion", "partial_deletion"]),
+  dataToDelete: z.string().optional(),
   reason: z.string().min(10, "Please provide a reason (at least 10 characters)"),
   urgency: z.enum(["low", "medium", "high"]),
   additionalInfo: z.string().optional(),
@@ -59,11 +61,14 @@ export default function DeleteAccountPage() {
   const currentUser = useCurrentUser()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [requestType, setRequestType] = useState<"full_deletion" | "partial_deletion">("full_deletion")
 
   const form = useForm<DeleteAccountFormValues>({
     resolver: zodResolver(deleteAccountFormSchema),
     defaultValues: {
       email: currentUser?.email ?? "",
+      requestType: "full_deletion",
+      dataToDelete: "",
       reason: "",
       urgency: "medium",
       additionalInfo: "",
@@ -77,9 +82,16 @@ export default function DeleteAccountPage() {
 
       if (!result.success) throw new Error(result.error || "Failed to submit deletion request")
 
-      toast.success("Account deletion request submitted successfully!", {
-        description:
-          "Our team will process your request within 24 hours and contact you at the provided email address.",
+      const message = data.requestType === "full_deletion" 
+        ? "Account deletion request submitted successfully!"
+        : "Data deletion request submitted successfully!"
+
+      const description = data.requestType === "full_deletion"
+        ? "Our team will process your request within 24 hours and contact you at the provided email address."
+        : "Our team will review and process your data deletion request within 48 hours."
+
+      toast.success(message, {
+        description,
         duration: 5000,
       })
 
@@ -116,12 +128,12 @@ export default function DeleteAccountPage() {
                 <ShieldAlert className="w-[18px] h-[18px] text-red-500" />
               </div>
               <CardTitle className="text-2xl font-black text-red-600">
-                Request Account Deletion
+                Request Data Deletion
               </CardTitle>
             </div>
             <CardDescription>
-              Submit this form to request permanent deletion of your Truevenix account and all
-              associated data. This action cannot be undone.
+              Choose to permanently delete your entire account or select specific data to delete 
+              while keeping your account active.
             </CardDescription>
           </CardHeader>
 
@@ -164,20 +176,122 @@ export default function DeleteAccountPage() {
 
                   <FormField
                     control={form.control}
+                    name="requestType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-gray-600">Request Type *</FormLabel>
+                        <FormControl>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <button
+                              type="button"
+                              className={`p-4 rounded-xl border-2 text-left transition-all ${
+                                field.value === "full_deletion"
+                                  ? "border-red-500 bg-red-50"
+                                  : "border-gray-200 hover:border-gray-300"
+                              }`}
+                              onClick={() => {
+                                field.onChange("full_deletion")
+                                setRequestType("full_deletion")
+                              }}
+                              disabled={isSubmitting}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className={`p-2 rounded-lg ${
+                                  field.value === "full_deletion" ? "bg-red-100" : "bg-gray-100"
+                                }`}>
+                                  <Trash2 className={`w-4 h-4 ${
+                                    field.value === "full_deletion" ? "text-red-600" : "text-gray-500"
+                                  }`} />
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-gray-900">Delete Entire Account</p>
+                                  <p className="text-xs text-gray-500 mt-0.5">
+                                    Permanently delete account and all associated data
+                                  </p>
+                                </div>
+                              </div>
+                            </button>
+                            <button
+                              type="button"
+                              className={`p-4 rounded-xl border-2 text-left transition-all ${
+                                field.value === "partial_deletion"
+                                  ? "border-blue-500 bg-blue-50"
+                                  : "border-gray-200 hover:border-gray-300"
+                              }`}
+                              onClick={() => {
+                                field.onChange("partial_deletion")
+                                setRequestType("partial_deletion")
+                              }}
+                              disabled={isSubmitting}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className={`p-2 rounded-lg ${
+                                  field.value === "partial_deletion" ? "bg-blue-100" : "bg-gray-100"
+                                }`}>
+                                  <Database className={`w-4 h-4 ${
+                                    field.value === "partial_deletion" ? "text-blue-600" : "text-gray-500"
+                                  }`} />
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-gray-900">Delete Specific Data</p>
+                                  <p className="text-xs text-gray-500 mt-0.5">
+                                    Keep account, delete specific types of data
+                                  </p>
+                                </div>
+                              </div>
+                            </button>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {requestType === "partial_deletion" && (
+                    <FormField
+                      control={form.control}
+                      name="dataToDelete"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-gray-600">What Data Do You Want Deleted? *</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Please list the specific data you want deleted (e.g., order history, saved addresses, payment methods, profile information, etc.)"
+                              className="min-h-[100px] text-gray-700"
+                              {...field}
+                              disabled={isSubmitting}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Be specific about which data you want permanently removed from your account.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  <FormField
+                    control={form.control}
                     name="reason"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-gray-600">Reason for Deletion *</FormLabel>
+                        <FormLabel className="text-gray-600">
+                          {requestType === "full_deletion" ? "Reason for Deletion" : "Reason for Data Deletion"} *
+                        </FormLabel>
                         <FormControl>
                           <Textarea
-                            placeholder="Please explain why you want to delete your account..."
+                            placeholder={requestType === "full_deletion" 
+                              ? "Please explain why you want to delete your account..." 
+                              : "Please explain why you want to delete this data..."
+                            }
                             className="min-h-[100px] text-gray-700"
                             {...field}
                             disabled={isSubmitting}
                           />
                         </FormControl>
                         <FormDescription>
-                          Help us understand your reason for leaving. Your feedback is valuable to us.
+                          Help us understand your reason. Your feedback is valuable to us.
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -191,8 +305,6 @@ export default function DeleteAccountPage() {
                       <FormItem>
                         <FormLabel className="text-gray-600">Urgency Level</FormLabel>
                         <FormControl>
-                          {/* No radix-select is installed in this project — a native
-                              select styled to match Input keeps this dependency-free. */}
                           <select
                             {...field}
                             disabled={isSubmitting}
@@ -204,7 +316,7 @@ export default function DeleteAccountPage() {
                           </select>
                         </FormControl>
                         <FormDescription>
-                          How urgently do you need your account deleted?
+                          How urgently do you need this processed?
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -226,27 +338,46 @@ export default function DeleteAccountPage() {
                           />
                         </FormControl>
                         <FormDescription>
-                          Include any specific details about data you want deleted or special circumstances.
+                          Include any special circumstances or details about your request.
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
 
-                  <div className="p-4 border border-red-200 bg-red-50 rounded-xl">
-                    <div className="flex items-start gap-2.5">
-                      <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-bold text-red-600">
-                          Warning: Account deletion is permanent
-                        </p>
-                        <p className="text-sm text-red-500/90 mt-1">
-                          All your data — including orders, addresses, saved items, and history —
-                          will be permanently removed and cannot be recovered.
-                        </p>
+                  {requestType === "full_deletion" && (
+                    <div className="p-4 border border-red-200 bg-red-50 rounded-xl">
+                      <div className="flex items-start gap-2.5">
+                        <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-bold text-red-600">
+                            Warning: Account deletion is permanent
+                          </p>
+                          <p className="text-sm text-red-500/90 mt-1">
+                            All your data — including orders, addresses, saved items, and history —
+                            will be permanently removed and cannot be recovered.
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
+
+                  {requestType === "partial_deletion" && (
+                    <div className="p-4 border border-blue-200 bg-blue-50 rounded-xl">
+                      <div className="flex items-start gap-2.5">
+                        <Database className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-bold text-blue-600">
+                            Data Deletion Information
+                          </p>
+                          <p className="text-sm text-blue-500/90 mt-1">
+                            Only the specified data will be permanently deleted. Your account 
+                            and other data will remain active. This action cannot be undone.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex gap-3 pt-2">
                     <Button
@@ -261,7 +392,11 @@ export default function DeleteAccountPage() {
                     <Button
                       type="submit"
                       disabled={isSubmitting}
-                      className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                      className={`flex-1 ${
+                        requestType === "full_deletion" 
+                          ? "bg-red-600 hover:bg-red-700" 
+                          : "bg-blue-600 hover:bg-blue-700"
+                      } text-white`}
                     >
                       {isSubmitting ? (
                         <>
@@ -269,7 +404,9 @@ export default function DeleteAccountPage() {
                           Submitting Request...
                         </>
                       ) : (
-                        "Submit Deletion Request"
+                        requestType === "full_deletion" 
+                          ? "Submit Deletion Request" 
+                          : "Submit Data Deletion Request"
                       )}
                     </Button>
                   </div>
@@ -281,9 +418,9 @@ export default function DeleteAccountPage() {
               <div className="mt-8 pt-6 border-t border-gray-100">
                 <h3 className="text-sm font-bold text-gray-900 mb-2">What happens next?</h3>
                 <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• Our team will review your request within 24 hours</li>
+                  <li>• Our team will review your request within 24-48 hours</li>
                   <li>• We may contact you to confirm your identity</li>
-                  <li>• All your data will be permanently deleted</li>
+                  <li>• Your requested data will be permanently deleted</li>
                   <li>• You will receive a confirmation email once completed</li>
                 </ul>
               </div>
