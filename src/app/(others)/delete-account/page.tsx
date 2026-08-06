@@ -145,10 +145,11 @@ export default function DeleteAccountPage() {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Email Address *</FormLabel>
+                        <FormLabel className="text-gray-600">Email Address *</FormLabel>
                         <FormControl>
                           <Input
                             placeholder="Enter your account email address"
+                            className="text-gray-700"
                             {...field}
                             disabled={isSubmitting}
                           />
@@ -166,11 +167,11 @@ export default function DeleteAccountPage() {
                     name="reason"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Reason for Deletion *</FormLabel>
+                        <FormLabel className="text-gray-600">Reason for Deletion *</FormLabel>
                         <FormControl>
                           <Textarea
                             placeholder="Please explain why you want to delete your account..."
-                            className="min-h-[100px]"
+                            className="min-h-[100px] text-gray-700"
                             {...field}
                             disabled={isSubmitting}
                           />
@@ -188,7 +189,7 @@ export default function DeleteAccountPage() {
                     name="urgency"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Urgency Level</FormLabel>
+                        <FormLabel className="text-gray-600">Urgency Level</FormLabel>
                         <FormControl>
                           {/* No radix-select is installed in this project — a native
                               select styled to match Input keeps this dependency-free. */}
@@ -215,11 +216,11 @@ export default function DeleteAccountPage() {
                     name="additionalInfo"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Additional Information</FormLabel>
+                        <FormLabel className="text-gray-600">Additional Information</FormLabel>
                         <FormControl>
                           <Textarea
                             placeholder="Any additional information we should know..."
-                            className="min-h-[80px]"
+                            className="min-h-[80px] text-gray-700"
                             {...field}
                             disabled={isSubmitting}
                           />
