@@ -33,6 +33,7 @@ export default async function AdminPage() {
         amount: true,
         status: true,
         deliveryStatus: true,
+        paymentMethod: true,
         createDate: true,
       },
       orderBy: { createDate: "desc" },

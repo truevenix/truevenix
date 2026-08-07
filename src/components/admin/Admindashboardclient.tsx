@@ -28,6 +28,7 @@ type AdminOrder = {
   amount: number
   status: string
   deliveryStatus: string
+  paymentMethod: string | null
   createDate: string
 }
 
@@ -377,7 +378,14 @@ export default function AdminDashboardClient({ data }: { data: AdminData }) {
                         <p className="text-xs text-slate-400">{order.customerEmail}</p>
                       </td>
                       <td className="px-4 py-3 font-black text-slate-900">{formatPrice(order.amount)}</td>
-                      <td className="px-4 py-3 text-xs font-black text-slate-500">{order.status}</td>
+                      <td className="px-4 py-3 text-xs font-black text-slate-500">
+                        {order.status}
+                        {order.paymentMethod === "installment" && (
+                          <span className="ml-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-black text-indigo-600">
+                            Installment
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <span
                           className="rounded-full px-2.5 py-1 text-[11px] font-black"

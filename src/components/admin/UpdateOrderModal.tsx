@@ -7,14 +7,26 @@
 //   2. Post a free-text shipping update (adds a row to OrderTimeline)
 // Either, both, or the push-notification toggle can be used on their own.
 
-import { useState } from "react"
-import { Bell, BellOff, Clock, Loader2, Truck, X } from "lucide-react"
+import { useEffect, useState } from "react"
+import { Bell, BellOff, CheckCircle2, Clock, CreditCard, Loader2, Truck, X, XCircle } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DELIVERY_STATUS_OPTIONS, deliveryStatusConfig, type DeliveryStatusValue } from "@/lib/delivery-status"
 import { cn } from "@/lib/utils"
+
+function formatPrice(value: number) {
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
+function formatDateTime(dateStr: string) {
+  return new Date(dateStr).toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" })
+}
 
 export type UpdateOrderModalOrder = {
   id: string
@@ -32,10 +44,107 @@ type UpdatedOrderResult = {
   timeline: { id: string; title: string; note: string | null; createdAt: string }[]
 }
 
+// Only the installment slice of GET /api/v1/admin/orders/:id — the rest of
+// that response duplicates what the row already passed in as `order`.
+type InstallmentPaymentRow = {
+  id: string
+  installmentNo: number
+  amount: number
+  status: "PENDING" | "PAID" | "FAILED"
+  paidAt: string | null
+}
+
+type InstallmentPlanDetail = {
+  id: string
+  status: "ACTIVE" | "COMPLETED" | "CANCELLED" | "DEFAULTED"
+  totalAmount: number
+  amountPaid: number
+  numberOfInstallments: number
+  payments: InstallmentPaymentRow[]
+}
+
 type Props = {
   order: UpdateOrderModalOrder
   onClose: () => void
   onSuccess: (order: UpdatedOrderResult, push: { sent: number; failed: number } | null) => void
+}
+
+const PLAN_STATUS_STYLE: Record<InstallmentPlanDetail["status"], string> = {
+  ACTIVE: "text-amber-700 bg-amber-50 border-amber-200",
+  COMPLETED: "text-emerald-700 bg-emerald-50 border-emerald-200",
+  CANCELLED: "text-slate-500 bg-slate-50 border-slate-200",
+  DEFAULTED: "text-red-700 bg-red-50 border-red-200",
+}
+
+// ── Installment timeline ─────────────────────────────────────────────────
+// Read-only for now — the admin can see exactly what's been paid and what's
+// still outstanding for this order, per installment. Marking installments
+// paid/failed only ever happens via the Paystack webhook, so there's
+// nothing to edit here.
+function InstallmentTimeline({ plan }: { plan: InstallmentPlanDetail }) {
+  const pct = plan.totalAmount > 0 ? Math.min(100, Math.round((plan.amountPaid / plan.totalAmount) * 100)) : 0
+
+  return (
+    <section className="grid gap-3">
+      <div className="flex items-center justify-between">
+        <Label className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500">
+          <CreditCard size={13} /> Installment plan
+        </Label>
+        <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-black", PLAN_STATUS_STYLE[plan.status])}>
+          {plan.status.charAt(0) + plan.status.slice(1).toLowerCase()}
+        </span>
+      </div>
+
+      <div>
+        <div className="mb-1.5 flex items-center justify-between text-xs font-bold text-slate-600">
+          <span>{formatPrice(plan.amountPaid)} of {formatPrice(plan.totalAmount)} paid</span>
+          <span>{pct}%</span>
+        </div>
+        <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+          <div className="h-full rounded-full bg-slate-950 transition-all" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+
+      <ol className="grid gap-2">
+        {plan.payments.map((payment) => {
+          const isPaid = payment.status === "PAID"
+          const isFailed = payment.status === "FAILED"
+          return (
+            <li
+              key={payment.id}
+              className={cn(
+                "flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5",
+                isPaid ? "border-emerald-200 bg-emerald-50/60" : isFailed ? "border-red-200 bg-red-50/60" : "border-slate-200 bg-slate-50"
+              )}
+            >
+              <div className="flex items-center gap-2.5">
+                {isPaid ? (
+                  <CheckCircle2 size={16} className="text-emerald-600" />
+                ) : isFailed ? (
+                  <XCircle size={16} className="text-red-500" />
+                ) : (
+                  <Clock size={16} className="text-slate-400" />
+                )}
+                <div>
+                  <p className="text-sm font-bold text-slate-800">
+                    Installment {payment.installmentNo} of {plan.numberOfInstallments}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    {isPaid && payment.paidAt
+                      ? `Paid ${formatDateTime(payment.paidAt)}`
+                      : isFailed
+                      ? "Payment failed"
+                      : "Not yet paid"}
+                  </p>
+                </div>
+              </div>
+              <span className="text-sm font-black text-slate-900">{formatPrice(payment.amount)}</span>
+            </li>
+          )
+        })}
+      </ol>
+    </section>
+  )
 }
 
 export default function UpdateOrderModal({ order, onClose, onSuccess }: Props) {
@@ -47,6 +156,32 @@ export default function UpdateOrderModal({ order, onClose, onSuccess }: Props) {
   const [timelineNote, setTimelineNote] = useState("")
   const [notify, setNotify] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+
+  // Fetched separately from the shallow `order` prop (the orders table row
+  // only carries the fields needed to render the table) so opening the
+  // modal is instant and the installment breakdown loads in just after.
+  const [installmentPlan, setInstallmentPlan] = useState<InstallmentPlanDetail | null>(null)
+  const [loadingPlan, setLoadingPlan] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoadingPlan(true)
+    fetch(`/api/v1/admin/orders/${order.id}`)
+      .then((res) => res.json())
+      .then((body) => {
+        if (cancelled) return
+        setInstallmentPlan(body?.order?.installmentPlan ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) setInstallmentPlan(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPlan(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [order.id])
 
   const canRegisterPush = Boolean(order.userId)
   const statusChanged = deliveryStatus !== order.deliveryStatus
@@ -164,6 +299,20 @@ export default function UpdateOrderModal({ order, onClose, onSuccess }: Props) {
           </section>
 
           <div className="h-px bg-slate-100" />
+
+          {/* ── Installment timeline ────────────────────────────────────── */}
+          {/* Only rendered once the fetch resolves and this order actually
+              has a plan attached — most orders won't, so nothing shows. */}
+          {loadingPlan ? (
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
+              <Loader2 size={13} className="animate-spin" /> Checking for an installment plan…
+            </div>
+          ) : installmentPlan ? (
+            <>
+              <InstallmentTimeline plan={installmentPlan} />
+              <div className="h-px bg-slate-100" />
+            </>
+          ) : null}
 
           {/* ── Free-text timeline update ───────────────────────────────── */}
           <section className="grid gap-3">

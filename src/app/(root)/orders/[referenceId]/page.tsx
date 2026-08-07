@@ -59,6 +59,23 @@ interface TimelineEntry {
   createdAt: string
 }
 
+interface InstallmentPaymentRow {
+  id:            string
+  installmentNo: number
+  amount:        number
+  status:        "PENDING" | "PAID" | "FAILED"
+  paidAt:        string | null
+}
+
+interface InstallmentPlan {
+  id:                   string
+  status:               "ACTIVE" | "COMPLETED" | "CANCELLED" | "DEFAULTED"
+  totalAmount:          number
+  amountPaid:           number
+  numberOfInstallments: number
+  payments:             InstallmentPaymentRow[]
+}
+
 interface Order {
   id:             string
   amount:         number
@@ -75,6 +92,7 @@ interface Order {
   orderItems:     OrderItem[]
   statusUpdates:  StatusUpdate[]
   timeline:       TimelineEntry[]
+  installmentPlan: InstallmentPlan | null
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -165,6 +183,123 @@ function DeliveryTracker({ status }: { status: string }) {
         )
       })}
     </div>
+  )
+}
+
+// ── Installment timeline ──────────────────────────────────────────────────
+// Only rendered when this order was placed with "Pay in installments" —
+// shows exactly what's been paid and what's still outstanding, plus a way
+// to pay the next installment without leaving the order page.
+const PLAN_STATUS_STYLE: Record<InstallmentPlan["status"], { label: string; cls: string }> = {
+  ACTIVE:     { label: "Active",    cls: "text-amber-700 bg-amber-50 border-amber-200" },
+  COMPLETED:  { label: "Completed", cls: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+  CANCELLED:  { label: "Cancelled", cls: "text-gray-500 bg-gray-50 border-gray-200" },
+  DEFAULTED:  { label: "Defaulted", cls: "text-red-700 bg-red-50 border-red-200" },
+}
+
+function InstallmentTimeline({ plan, currency }: { plan: InstallmentPlan; currency: string }) {
+  const [paying, setPaying] = useState(false)
+  const pct = plan.totalAmount > 0 ? Math.min(100, Math.round((plan.amountPaid / plan.totalAmount) * 100)) : 0
+  const nextPayment = plan.payments.find((p) => p.status !== "PAID") ?? null
+  const { label, cls } = PLAN_STATUS_STYLE[plan.status]
+
+  async function handlePayNext() {
+    if (!nextPayment || paying) return
+    setPaying(true)
+    try {
+      const res = await fetch("/api/installments/pay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId: plan.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Could not start payment")
+      if (data.payment?.authorizationUrl) {
+        window.location.href = data.payment.authorizationUrl
+        return
+      }
+    } catch {
+      // Silently fall through — button just re-enables so they can retry.
+    }
+    setPaying(false)
+  }
+
+  return (
+    <Section title="Installment plan" icon={CreditCard}>
+      <div className="mb-4 flex items-center justify-between">
+        <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${cls}`}>{label}</span>
+        <span className="text-xs font-semibold text-gray-500">
+          {plan.payments.filter((p) => p.status === "PAID").length} of {plan.numberOfInstallments} paid
+        </span>
+      </div>
+
+      <div className="mb-4">
+        <div className="mb-1.5 flex items-center justify-between text-sm">
+          <span className="font-semibold text-gray-600">
+            {formatPrice(plan.amountPaid, currency)} of {formatPrice(plan.totalAmount, currency)} paid
+          </span>
+          <span className="font-bold text-[var(--theme-primary)]">{pct}%</span>
+        </div>
+        <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+          <div
+            className="h-full rounded-full transition-all"
+            style={{ width: `${pct}%`, backgroundColor: "var(--theme-primary)" }}
+          />
+        </div>
+      </div>
+
+      <ol className="space-y-2">
+        {plan.payments.map((payment) => {
+          const isPaid = payment.status === "PAID"
+          const isFailed = payment.status === "FAILED"
+          return (
+            <li
+              key={payment.id}
+              className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 ${
+                isPaid ? "border-emerald-200 bg-emerald-50/60" : isFailed ? "border-red-200 bg-red-50/60" : "border-gray-100 bg-gray-50"
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                {isPaid ? (
+                  <CheckCircle2 size={15} className="text-emerald-600" />
+                ) : isFailed ? (
+                  <XCircle size={15} className="text-red-500" />
+                ) : (
+                  <Clock size={15} className="text-gray-400" />
+                )}
+                <div>
+                  <p className="text-sm font-bold text-gray-800">
+                    Installment {payment.installmentNo} of {plan.numberOfInstallments}
+                  </p>
+                  <p className="text-[11px] text-gray-400">
+                    {isPaid && payment.paidAt
+                      ? `Paid ${formatDateTime(payment.paidAt)}`
+                      : isFailed
+                      ? "Payment failed — you can retry below"
+                      : "Not yet paid"}
+                  </p>
+                </div>
+              </div>
+              <span className="text-sm font-extrabold text-gray-900">{formatPrice(payment.amount, currency)}</span>
+            </li>
+          )
+        })}
+      </ol>
+
+      {plan.status === "ACTIVE" && nextPayment && (
+        <button
+          onClick={handlePayNext}
+          disabled={paying}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-white transition-opacity disabled:opacity-60"
+          style={{ backgroundColor: "var(--theme-primary)" }}
+        >
+          <CreditCard size={15} />
+          {paying
+            ? "Redirecting…"
+            : `Pay installment ${nextPayment.installmentNo} — ${formatPrice(nextPayment.amount, currency)}`}
+        </button>
+      )}
+    </Section>
   )
 }
 
@@ -351,6 +486,14 @@ function OrderDetail() {
           <Section title="Delivery status" icon={Truck}>
             <DeliveryTracker status={order.deliveryStatus} />
           </Section>
+
+          {/* ── Installment plan ─────────────────────────────────────────────
+              Only present when this order was placed with "Pay in
+              installments" — shows what's been paid, what's outstanding,
+              and lets the customer pay the next one right here. */}
+          {order.installmentPlan && (
+            <InstallmentTimeline plan={order.installmentPlan} currency={order.currency} />
+          )}
 
           {/* ── Shipping updates ─────────────────────────────────────────────
               Free-text updates posted by an admin, independent of delivery

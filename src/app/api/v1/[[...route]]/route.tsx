@@ -255,6 +255,15 @@ const orderInclude = {
   timeline: {
     orderBy: { createdAt: "desc" as const },
   },
+   // Only present when this order was placed with "Pay in installments" —
+  // null for every other order. Carries the full payment-by-payment
+  // breakdown so both the customer order page and the admin order view can
+  // render a timeline of what's been paid and what's still outstanding.
+  installmentPlan: {
+    include: {
+      payments: { orderBy: { installmentNo: "asc" as const } },
+    },
+  },
 } as const
 
 // Same shape as orderInclude, plus the linked user id/name/email so the admin
