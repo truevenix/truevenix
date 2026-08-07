@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { useMutation } from "@tanstack/react-query"
 import {ArrowLeft, CheckCircle2, CreditCard, Mail, MapPin, Package, Phone, User, Loader2, AlertCircle, Check, Calendar, Lock, LogIn, Plus, Edit2, Home, Briefcase, Tag, X,} from "lucide-react"
@@ -454,10 +455,20 @@ function AccountBanner({
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
-export default function CheckoutPage() {
+function CheckoutPageInner() {
   const { user, isLoading: sessionLoading } = useCurrentUserWithStatus()
   const { items, totalItems, totalPrice, deliveryFee, clearCart } = useCart()
   const { pendingAddress, activeAddress } = useDeliveryAddress()
+  const searchParams = useSearchParams()
+
+  // Deep-link support: the product detail page's "Buy with installments"
+  // button lands here as /checkout?method=installment&count=3 so the
+  // payment method is already selected — no extra click needed.
+  const deepLinkMethod = searchParams.get("method") === "installment" ? "installment" : "paystack"
+  const deepLinkCountRaw = Number(searchParams.get("count"))
+  const deepLinkCount = ([2, 3, 4, 6] as const).includes(deepLinkCountRaw as never)
+    ? (deepLinkCountRaw as 2 | 3 | 4 | 6)
+    : 3
 
   // ── Promo code ──────────────────────────────────────────────────────────
   // Applied here on checkout (not the cart page) — mirrors the Expo app flow.
@@ -517,8 +528,8 @@ export default function CheckoutPage() {
   const [form, setForm] = useState({
     customerName: "",
     customerEmail: "",
-    paymentMethod: "paystack" as "paystack" | "installment",
-    installmentCount: 3 as 2 | 3 | 4 | 6,
+    paymentMethod: deepLinkMethod as "paystack" | "installment",
+    installmentCount: deepLinkCount as 2 | 3 | 4 | 6,
     notes: "",
   })
 
@@ -1477,5 +1488,12 @@ export default function CheckoutPage() {
         </form>
       </div>
     </main>
+  )
+}
+export default function CheckoutPage() {
+  return (
+    <Suspense fallback={null}>
+      <CheckoutPageInner />
+    </Suspense>
   )
 }

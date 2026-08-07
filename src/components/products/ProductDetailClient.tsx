@@ -3,10 +3,13 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
+  Calendar,
   Check,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
   Heart,
   Minus,
   Plus,
@@ -18,8 +21,10 @@ import { motion } from "framer-motion"
 import { toast } from "sonner"
 import ProductCard from "@/components/products/ProductCard"
 import { buildCartKey, formatPrice, useCart } from "@/context/cart-context"
+import { useCurrentUser } from "@/hooks/use-current-user"
 import { useRelatedProducts } from "@/hooks/use-store-api"
 import { toCardProduct, toProductCategory } from "@/lib/products"
+import { ALLOWED_INSTALLMENT_COUNTS, computeInstallmentAmounts } from "@/lib/installments"
 import ProductAskAI from "@/components/products/ProductAskAI"
 
 // ---------------------------------------------------------------------------
@@ -132,9 +137,13 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 
 export default function ProductDetailClient({ product }: { product: ProductDetail }) {
   const { addToCart, isInCart } = useCart()
+  const user = useCurrentUser()
+  const router = useRouter()
   const [selectedImage, setSelectedImage] = useState(product.images[0])
   const [quantity, setQuantity] = useState(1)
   const [wished, setWished] = useState(false)
+  const [installmentCount, setInstallmentCount] = useState<2 | 3 | 4 | 6>(3)
+  const [buyingWithInstallments, setBuyingWithInstallments] = useState(false)
   const defaultSize = product.sizeOptions?.find(s => s.isDefault)
   ?? product.sizeOptions?.[0]
   ?? null
@@ -181,6 +190,38 @@ const handleAddToCart = () => {
   toast.success(`${itemName} added to cart`, {
     description: `${quantity} item${quantity === 1 ? "" : "s"} — ${formatPrice(price * quantity)}`,
   })
+}
+
+// "Buy with installments" adds the current selection to the cart (same as
+// Add to cart, silently — no toast, since we're navigating away immediately)
+// then deep-links into checkout with the installment method + count
+// pre-selected. If the shopper isn't signed in, we still go — checkout's
+// installment section already shows a "sign in to continue" prompt inline.
+const handleBuyWithInstallments = () => {
+  if (!product.inStock || buyingWithInstallments) return
+  setBuyingWithInstallments(true)
+
+  const price = selectedSize?.price ?? product.price
+  const itemName = selectedSize
+    ? `${product.name} (${selectedSize.label} — ${selectedSize.name})`
+    : product.name
+
+  Array.from({ length: quantity }).forEach(() => {
+    addToCart({
+      cartKey,
+      id: product.id,
+      name: itemName,
+      description: product.description,
+      category,
+      brand: product.brand ?? "",
+      price,
+      imageColor: selectedImage?.color ?? "Default",
+      imageColorCode: selectedImage?.colorCode ?? "#475569",
+      imageUrl: selectedImage?.image ?? "",
+    })
+  })
+
+  router.push(`/checkout?method=installment&count=${installmentCount}`)
 }
 
   return (
@@ -435,6 +476,64 @@ const handleAddToCart = () => {
               <Zap size={17} />
               Checkout
             </Link>
+          </div>
+
+          {/* Pay in installments — lets a shopper see + start a BNPL
+              checkout right from the product page, without adding to cart
+              and navigating to checkout first to discover the option. */}
+          <div
+            className="rounded-2xl border-2 border-dashed p-4"
+            style={{
+              borderColor: "color-mix(in srgb, var(--theme-primary) 35%, transparent)",
+              backgroundColor: "color-mix(in srgb, var(--theme-primary) 5%, white)",
+            }}
+          >
+            <div className="mb-3 flex items-center gap-2">
+              <Calendar size={16} style={{ color: "var(--theme-primary)" }} />
+              <p className="text-sm font-black text-gray-800">Pay in installments</p>
+            </div>
+
+            <div className="mb-3 grid grid-cols-4 gap-2">
+              {ALLOWED_INSTALLMENT_COUNTS.map((n) => {
+                const selected = installmentCount === n
+                const amounts = computeInstallmentAmounts(displayPrice * quantity, n)
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setInstallmentCount(n)}
+                    className="flex flex-col items-center gap-0.5 rounded-xl border-2 py-2 transition-all"
+                    style={{
+                      borderColor: selected ? "var(--theme-primary)" : "#e5e7eb",
+                      backgroundColor: selected
+                        ? "color-mix(in srgb, var(--theme-primary) 10%, white)"
+                        : "white",
+                    }}
+                  >
+                    <span className="text-xs font-extrabold text-gray-800">{n}x</span>
+                    <span className="text-[10px] text-gray-500">{formatPrice(amounts[0])}</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            <button
+              onClick={handleBuyWithInstallments}
+              disabled={!product.inStock || buyingWithInstallments}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-bold text-white transition-opacity disabled:opacity-50"
+              style={{ backgroundColor: "var(--theme-primary)" }}
+            >
+              <CreditCard size={15} />
+              {buyingWithInstallments
+                ? "Redirecting…"
+                : `Buy now — ${formatPrice(computeInstallmentAmounts(displayPrice * quantity, installmentCount)[0])} today`}
+            </button>
+
+            <p className="mt-2 text-center text-[11px] text-gray-500">
+              {user
+                ? "First payment today via Paystack. Pay the rest anytime from your profile."
+                : "You'll need to sign in at checkout to use installments."}
+            </p>
           </div>
 
         </div>
