@@ -2,13 +2,6 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { sendOrderCreatedEmails } from "@/lib/mail"
-import { verifyMobileToken } from "@/lib/verifyMobileToken"
-import {
-  ALLOWED_INSTALLMENT_COUNTS,
-  computeInstallmentAmounts,
-  installmentReference,
-  isAllowedInstallmentCount,
-} from "@/lib/installments"
 
 export const runtime = "nodejs"
 
@@ -30,11 +23,6 @@ const orderInclude = {
   statusUpdates: {
     orderBy: { createdAt: "desc" as const },
   },
-  installmentPlan: {
-    include: {
-      payments: { orderBy: { installmentNo: "asc" as const } },
-    },
-  },
 } as const
 
 type CheckoutItemInput = {
@@ -54,8 +42,6 @@ type InitializePayload = {
   paymentMethod?: string
   promoCode?: string
   items?: CheckoutItemInput[]
-  // Installment plan — only read when paymentMethod === "installment"
-  installmentCount?: number
 }
 
 function normalizeEmail(email: string) {
@@ -71,22 +57,6 @@ function orderReference() {
   return `VNX-${Date.now()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
 }
 
-// Same dual-auth shape used across the mobile-facing routes (see
-// /api/addresses): NextAuth session for the web app, Bearer mobile token for
-// the Expo app. Installments require a real account (no guest checkout),
-// so this only ever returns a userId or null.
-async function resolveUserId(req: NextRequest, sessionUserId: string | null | undefined) {
-  if (sessionUserId) return sessionUserId
-
-  const header = req.headers.get("Authorization")
-  if (header?.startsWith("Bearer ")) {
-    const payload = await verifyMobileToken(header.split(" ")[1])
-    if (payload?.userId) return payload.userId
-  }
-
-  return null
-}
-
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json().catch(() => null)) as InitializePayload | null
@@ -95,11 +65,8 @@ export async function POST(req: NextRequest) {
     // ── Step 1: Resolve identity ────────────────────────────────────────────
     const session = await auth().catch(() => null)
 
-    let resolvedUserId: string | null = await resolveUserId(req, session?.user?.id)
+    let resolvedUserId: string | null = session?.user?.id ?? null
     let resolvedGuestEmail: string | null = null
-
-    const paymentMethod = body?.paymentMethod?.trim() || "paystack"
-    const isInstallment = paymentMethod === "installment"
 
     const rawEmail = body?.customerEmail || body?.guestEmail || ""
     const inputEmail = rawEmail ? normalizeEmail(rawEmail) : ""
@@ -107,15 +74,6 @@ export async function POST(req: NextRequest) {
     let customerEmail = inputEmail
 
     if (!resolvedUserId) {
-      // Installments are account-only — there's nowhere for a guest to come
-      // back and view/pay the remaining installments.
-      if (isInstallment) {
-        return NextResponse.json(
-          { error: "Please sign in to use installment payments." },
-          { status: 401 }
-        )
-      }
-
       if (!inputEmail) {
         return NextResponse.json(
           { error: "A valid email address is required to place an order." },
@@ -206,6 +164,7 @@ export async function POST(req: NextRequest) {
 
     const subtotal = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
     const referenceId = orderReference()
+    const paymentMethod = body?.paymentMethod?.trim() || "paystack"
 
     // ── Step 2b: Validate promo code (server is the source of truth — never ──
     // trust a discount amount computed on the client) ────────────────────────
@@ -237,28 +196,7 @@ export async function POST(req: NextRequest) {
 
     const amount = Math.max(subtotal - discountAmount, 0)
 
-    // ── Step 2c: Validate the installment plan shape before touching the DB ──
-
-    let installmentCount = 0
-    let installmentAmounts: number[] = []
-
-    if (isInstallment) {
-      installmentCount = Number(body?.installmentCount)
-      if (!isAllowedInstallmentCount(installmentCount)) {
-        return NextResponse.json(
-          {
-            error: `installmentCount must be one of: ${ALLOWED_INSTALLMENT_COUNTS.join(", ")}`,
-          },
-          { status: 400 }
-        )
-      }
-      if (amount <= 0) {
-        return NextResponse.json({ error: "Order total must be greater than zero." }, { status: 400 })
-      }
-      installmentAmounts = computeInstallmentAmounts(amount, installmentCount)
-    }
-
-    // ── Step 3: Create the order (+ installment plan, if applicable) ────────
+    // ── Step 3: Create the order ────────────────────────────────────────────
 
     const orderData: any = {
       customerEmail,
@@ -293,27 +231,6 @@ export async function POST(req: NextRequest) {
 
     if (resolvedGuestEmail) {
       orderData.guestEmail = resolvedGuestEmail
-    }
-
-    if (isInstallment) {
-      // Create every installment row up front (all PENDING) so "how much
-      // has this person paid so far" is always a simple aggregate over
-      // payments — we only ever mutate rows, never invent them later.
-      orderData.installmentPlan = {
-        create: {
-          userId: resolvedUserId as string,
-          totalAmount: amount,
-          numberOfInstallments: installmentCount,
-          installmentAmount: installmentAmounts[0],
-          payments: {
-            create: installmentAmounts.map((amt, idx) => ({
-              installmentNo: idx + 1,
-              amount: amt,
-              reference: installmentReference(referenceId, idx + 1),
-            })),
-          },
-        },
-      }
     }
 
     const order = await db.order.create({
@@ -357,22 +274,13 @@ export async function POST(req: NextRequest) {
       })
 
     // ── Step 4: Pay-on-delivery skips Paystack entirely ─────────────────────
-    // Kept here for any caller that still sends it (e.g. an older mobile app
-    // build) even though it's been removed from the web checkout page.
 
     if (paymentMethod === "pay-on-delivery") {
       await sendAckEmail()
       return NextResponse.json({ order }, { status: 201 })
     }
 
-    // ── Step 5: Initialize the Paystack transaction ─────────────────────────
-    // For a normal order this charges the full amount against the order's
-    // own referenceId. For an installment order it charges only the FIRST
-    // installment, against that installment's own reference — the webhook
-    // uses the reference to know which row to mark paid.
-
-    const chargeReference = isInstallment ? order.installmentPlan!.payments[0].reference : order.referenceId
-    const chargeAmount = isInstallment ? order.installmentPlan!.payments[0].amount : amount
+    // ── Step 5: Initialize Paystack transaction (critical path, runs first) ──
 
     const paystackSecret = process.env.PAYSTACK_SECRET
 
@@ -382,12 +290,14 @@ export async function POST(req: NextRequest) {
         order,
         payment: {
           provider: "manual",
-          reference: chargeReference,
+          reference: order.referenceId,
           authorizationUrl: null,
           message: "Order saved. Add PAYSTACK_SECRET to enable online card payment initialization.",
         },
       })
     }
+
+    const origin = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin
 
     const response = await fetch("https://api.paystack.co/transaction/initialize", {
       method: "POST",
@@ -397,22 +307,15 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         email: customerEmail,
-        amount: Math.round(chargeAmount * 100),
-        reference: chargeReference,
+        amount: Math.round(amount * 100),
+        reference: order.referenceId,
         callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success?orderId=${order.id}`,
         metadata: {
-          source: "venix",
           orderId: order.id,
           customerName: order.customerName,
           userId: resolvedUserId,
           guestEmail: resolvedGuestEmail,
           referenceId,
-          ...(isInstallment && {
-            type: "installment",
-            installmentPlanId: order.installmentPlan!.id,
-            installmentPaymentId: order.installmentPlan!.payments[0].id,
-            installmentNo: 1,
-          }),
         },
       }),
     })
@@ -428,24 +331,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: paymentData.message || "Unable to initialize payment." }, { status: 502 })
     }
 
-    if (isInstallment) {
-      await db.installmentPayment.update({
-        where: { id: order.installmentPlan!.payments[0].id },
-        data: { paymentUrl: paymentData.data.authorization_url },
-      })
-      await db.order.update({
-        where: { id: order.id },
-        data: { paymentProvider: "paystack" },
-      })
-    } else {
-      await db.order.update({
-        where: { id: order.id },
-        data: {
-          paymentProvider: "paystack",
-          paymentUrl: paymentData.data.authorization_url,
-        },
-      })
-    }
+    await db.order.update({
+      where: { id: order.id },
+      data: {
+        paymentProvider: "paystack",
+        paymentUrl: paymentData.data.authorization_url,
+      },
+    })
 
     // ── Step 6: Payment initialized successfully — send the acknowledgement email last ──
 
@@ -459,17 +351,10 @@ export async function POST(req: NextRequest) {
         authorizationUrl: paymentData.data.authorization_url,
         accessCode: paymentData.data.access_code,
       },
-      ...(isInstallment && {
-        installmentPlan: {
-          id: order.installmentPlan!.id,
-          numberOfInstallments: order.installmentPlan!.numberOfInstallments,
-          totalAmount: order.installmentPlan!.totalAmount,
-          amountPaid: order.installmentPlan!.amountPaid,
-        },
-      }),
     }, { status: 201 })
   } catch (err) {
     console.error("[paystack/initialize]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
+

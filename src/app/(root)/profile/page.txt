@@ -17,11 +17,12 @@ import { motion, AnimatePresence } from "framer-motion"
 import {
   User, Mail, Phone, MapPin, ShoppingBag, Heart,
   HelpCircle, FileText, ShieldCheck, LogOut, ChevronRight, Camera,
-  Plus, Trash2, Edit2, Loader2, Home, Briefcase, Repeat,
+  Plus, Trash2, Edit2, Loader2, Home, Briefcase, Repeat, Bell, BellOff,
 } from "lucide-react"
 import { AddressModal, type Address, type AddressForm } from "@/components/AddressModal"
 import { useCurrentUser } from "@/hooks/use-current-user"
 import { handleProfileImageSaveToFirebase } from "@/lib/upload"
+import { useWebPush } from "@/hooks/use-web-push"
 
 // ─── Row item ─────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,48 @@ function RowItem({
         {onClick && !danger && <ChevronRight className="w-4 h-4 text-gray-300" />}
       </div>
     </Wrapper>
+  )
+}
+
+function ToggleRow({
+  icon: Icon, iconBg, iconColor, label, sublabel, checked, disabled, busy, onChange,
+}: {
+  icon: React.ElementType
+  iconBg: string
+  iconColor?: string
+  label: string
+  sublabel?: string
+  checked: boolean
+  disabled?: boolean
+  busy?: boolean
+  onChange: (next: boolean) => void
+}) {
+  return (
+    <div className="flex w-full items-center gap-3 px-4 py-3.5 border-b border-gray-100 last:border-0">
+      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>
+        <Icon className={`w-[17px] h-[17px] ${iconColor ?? "text-[var(--theme-primary)]"}`} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-medium text-gray-800">{label}</span>
+        {sublabel && <p className="text-xs text-gray-400 mt-0.5">{sublabel}</p>}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled || busy}
+        onClick={() => onChange(!checked)}
+        className={`relative w-10 h-6 rounded-full shrink-0 transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed ${
+          checked ? "bg-[var(--theme-primary)]" : "bg-gray-200"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${
+            checked ? "translate-x-4" : "translate-x-0"
+          }`}
+        />
+      </button>
+    </div>
   )
 }
 
@@ -91,6 +134,7 @@ export default function ProfilePage() {
   const [editingAddr, setEditingAddr]   = useState<Address | null>(null)
   const [toast, setToast]               = useState<{ msg: string; type: "ok" | "err" } | null>(null)
   const fileRef                         = useRef<HTMLInputElement>(null)
+  const webPush                         = useWebPush()
 
   useEffect(() => { if (user?.image) setAvatarUrl(user.image) }, [user?.image])
 
@@ -101,6 +145,17 @@ export default function ProfilePage() {
   const showToast = (msg: string, type: "ok" | "err" = "ok") => {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3000)
+  }
+
+  // ── Push notifications ─────────────────────────────────────────────────
+
+  const handleTogglePush = async (next: boolean) => {
+    const result = next ? await webPush.enable() : await webPush.disable()
+    if (result.ok) {
+      showToast(next ? "Push notifications enabled" : "Push notifications turned off")
+    } else if (result.message) {
+      showToast(result.message, "err")
+    }
   }
 
   // ── Address helpers ────────────────────────────────────────────────────────
@@ -415,6 +470,41 @@ export default function ProfilePage() {
               </button>
             </div>
           )}
+
+          {/* Preferences */}
+          <SectionHead title="Preferences" />
+          <Card>
+            {webPush.status === "unsupported" ? (
+              <div className="flex items-center gap-3 px-4 py-3.5">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-gray-50">
+                  <BellOff className="w-[17px] h-[17px] text-gray-400" />
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-gray-500">Push notifications</span>
+                  <p className="text-xs text-gray-400 mt-0.5">Not supported in this browser</p>
+                </div>
+              </div>
+            ) : (
+              // Find this section in your profile page and update:
+<ToggleRow
+  icon={webPush.status === "enabled" || webPush.status === "pending" ? Bell : BellOff}
+  iconBg="bg-violet-50"
+  iconColor="text-violet-600"
+  label="Push Notifications"
+  sublabel={
+    webPush.status === "denied"
+      ? "Blocked — enable in browser settings"
+      : webPush.status === "pending"
+      ? "Enabled — will link to your account shortly"
+      : "Order updates and promo alerts on this device"
+  }
+  checked={webPush.status === "enabled" || webPush.status === "pending"}
+  disabled={webPush.status === "denied" || webPush.status === "loading"}
+  busy={webPush.busy}
+  onChange={handleTogglePush}
+/>
+            )}
+          </Card>
 
           {/* Truevenix account */}
           <SectionHead title="Truevenix Account" />

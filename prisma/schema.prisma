@@ -42,6 +42,7 @@ model User {
   bio           String?
   role          UserRole  @default(USER)
   addresses     Address[]
+  installmentPlans InstallmentPlan[]
   onboarded     Boolean   @default(false)
   isTwoFactorEnabled Boolean @default(false)
   emailVerified DateTime?
@@ -236,6 +237,7 @@ model Order {
   orderItems    OrderItem[]
   statusUpdates OrderStatusUpdate[]
   timeline      OrderTimeline[]
+  installmentPlan InstallmentPlan?
 
   @@index([userId])
   @@index([customerEmail])
@@ -328,6 +330,58 @@ model PasswordResetToken {
 
   @@unique([email, token])
 }
+
+enum InstallmentPlanStatus {
+  ACTIVE     // still has unpaid installments
+  COMPLETED  // amountPaid >= totalAmount
+  CANCELLED
+  DEFAULTED  // reserved for future use (missed-payment handling)
+}
+
+enum InstallmentPaymentStatus {
+  PENDING  // Paystack transaction initialized, not yet confirmed
+  PAID
+  FAILED
+}
+
+model InstallmentPlan {
+  id                   String                @id @default(uuid()) @db.Uuid
+  orderId              String                @unique @db.Uuid
+  userId               String                @db.Uuid
+  totalAmount          Float                 // full order amount this plan covers
+  amountPaid           Float                 @default(0)
+  numberOfInstallments Int
+  installmentAmount    Float                 // amount per installment (last one absorbs rounding)
+  status               InstallmentPlanStatus @default(ACTIVE)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  order    Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments InstallmentPayment[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model InstallmentPayment {
+  id            String                    @id @default(uuid()) @db.Uuid
+  planId        String                    @db.Uuid
+  installmentNo Int                       // 1-indexed position in the plan
+  amount        Float
+  reference     String                    @unique // Paystack reference for this specific installment
+  status        InstallmentPaymentStatus  @default(PENDING)
+  paymentUrl    String?
+  paidAt        DateTime?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+
+  plan InstallmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+  @@index([status])
+}
+
 
 model PromoCode {
   id            String   @id @default(uuid()) @db.Uuid

@@ -18,6 +18,7 @@ import {
   User, Mail, Phone, MapPin, ShoppingBag, Heart,
   HelpCircle, FileText, ShieldCheck, LogOut, ChevronRight, Camera,
   Plus, Trash2, Edit2, Loader2, Home, Briefcase, Repeat, Bell, BellOff,
+  CreditCard,
 } from "lucide-react"
 import { AddressModal, type Address, type AddressForm } from "@/components/AddressModal"
 import { useCurrentUser } from "@/hooks/use-current-user"
@@ -510,6 +511,7 @@ export default function ProfilePage() {
           <SectionHead title="Truevenix Account" />
           <Card>
             <RowItem icon={ShoppingBag} iconBg="bg-amber-50" iconColor="text-amber-600" label="My Orders" onClick={() => window.location.href = "/orders"} />
+            <RowItem icon={CreditCard}  iconBg="bg-indigo-50" iconColor="text-indigo-600" label="Installment Payments" onClick={() => window.location.href = "/profile/installments"} />
             <RowItem icon={Heart}       iconBg="bg-red-50"   iconColor="text-red-500"   label="Wishlist"   onClick={() => window.location.href = "/wishlist"} />
           </Card>
 

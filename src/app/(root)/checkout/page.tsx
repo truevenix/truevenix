@@ -5,7 +5,7 @@ import Image from "next/image"
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useMutation } from "@tanstack/react-query"
-import {ArrowLeft, CheckCircle2, CreditCard, Mail, MapPin, Package, Phone, User, Loader2, AlertCircle, Check, Truck, Lock, LogIn, Plus, Edit2, Home, Briefcase, Tag, X,} from "lucide-react"
+import {ArrowLeft, CheckCircle2, CreditCard, Mail, MapPin, Package, Phone, User, Loader2, AlertCircle, Check, Calendar, Lock, LogIn, Plus, Edit2, Home, Briefcase, Tag, X,} from "lucide-react"
 import { toast } from "sonner"
 import { formatPrice, useCart } from "@/context/cart-context"
 import { useCurrentUserWithStatus } from "@/hooks/use-current-user"
@@ -141,7 +141,7 @@ function PaymentCard({
   icon: Icon,
   onSelect,
 }: {
-  value: "paystack" | "pay-on-delivery"
+  value: "paystack" | "installment"
   current: string
   label: string
   description: string
@@ -517,7 +517,8 @@ export default function CheckoutPage() {
   const [form, setForm] = useState({
     customerName: "",
     customerEmail: "",
-    paymentMethod: "paystack" as "paystack" | "pay-on-delivery",
+    paymentMethod: "paystack" as "paystack" | "installment",
+    installmentCount: 3 as 2 | 3 | 4 | 6,
     notes: "",
   })
 
@@ -697,7 +698,8 @@ export default function CheckoutPage() {
   const hasName       = form.customerName.trim().length > 0
   const hasAddress    = Boolean(selectedAddrId)
   const hasPhone      = Boolean(selectedAddr?.phoneNumber)
-  const canOrder      = hasName && hasValidEmail && hasAddress && hasPhone && items.length > 0
+  const installmentReady = form.paymentMethod !== "installment" || Boolean(user)
+  const canOrder      = hasName && hasValidEmail && hasAddress && hasPhone && installmentReady && items.length > 0
 
   // ── Validation ─────────────────────────────────────────────────────────────
   const validate = () => {
@@ -711,6 +713,8 @@ export default function CheckoutPage() {
     if (!hasAddress) next.address = "Please select a delivery address"
     if (hasAddress && !hasPhone)
       next.phone = "Your selected address needs a phone number — edit it to add one"
+    if (form.paymentMethod === "installment" && !user)
+      next.paymentMethod = "Please sign in to pay in installments"
     setFormErrors(next)
     return Object.keys(next).length === 0
   }
@@ -736,6 +740,7 @@ export default function CheckoutPage() {
           customerPhone: selectedAddr?.phoneNumber ?? "",
           address: selectedAddr ? formatAddressLine(selectedAddr) : "",
           paymentMethod: form.paymentMethod,
+          ...(form.paymentMethod === "installment" && { installmentCount: form.installmentCount }),
           deliveryFee,
           promoCode: appliedPromo?.code || undefined,
           items: checkoutItems,
@@ -748,14 +753,6 @@ export default function CheckoutPage() {
     },
     onSuccess: (data) => {
       clearCart()
-
-      if (form.paymentMethod === "pay-on-delivery") {
-        toast.success("Order placed! We will contact you before delivery.")
-        if (data.order?.referenceId) {
-          window.location.href = `/orders?email=${encodeURIComponent(data.order.customerEmail)}`
-        }
-        return
-      }
 
       if (data.payment?.authorizationUrl) {
         toast.success("Redirecting to payment…")
@@ -1057,12 +1054,12 @@ export default function CheckoutPage() {
                     onSelect={() => set("paymentMethod", "paystack")}
                   />
                   <PaymentCard
-                    value="pay-on-delivery"
+                    value="installment"
                     current={form.paymentMethod}
-                    label="Pay on delivery"
-                    description="Cash when your order arrives"
-                    icon={Truck}
-                    onSelect={() => set("paymentMethod", "pay-on-delivery")}
+                    label="Pay in installments"
+                    description="Split your payment over time"
+                    icon={Calendar}
+                    onSelect={() => set("paymentMethod", "installment")}
                   />
                 </div>
 
@@ -1081,6 +1078,68 @@ export default function CheckoutPage() {
                       You&apos;ll be redirected to Paystack&apos;s secure checkout after placing your order.
                     </p>
                   </motion.div>
+                )}
+
+                {form.paymentMethod === "installment" && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="mt-3 rounded-xl p-3.5"
+                    style={{
+                      backgroundColor: "color-mix(in srgb, var(--theme-primary) 6%, white)",
+                      border: "1px solid color-mix(in srgb, var(--theme-primary) 20%, transparent)",
+                    }}
+                  >
+                    {!user ? (
+                      <p className="flex items-center gap-2 text-xs leading-relaxed text-gray-600">
+                        <LogIn size={13} style={{ color: "var(--theme-primary)" }} />
+                        <Link href="/auth/login" className="font-bold underline" style={{ color: "var(--theme-primary)" }}>
+                          Sign in
+                        </Link>
+                        &nbsp;to pay in installments — this needs an account so you can track and pay the rest later.
+                      </p>
+                    ) : (
+                      <>
+                        <p className="mb-2.5 text-xs font-bold uppercase tracking-wider text-gray-500">
+                          Number of installments
+                        </p>
+                        <div className="grid grid-cols-4 gap-2">
+                          {([2, 3, 4, 6] as const).map((n) => {
+                            const selected = form.installmentCount === n
+                            const each = grandTotal / n
+                            return (
+                              <button
+                                key={n}
+                                type="button"
+                                onClick={() => set("installmentCount", n)}
+                                className="flex flex-col items-center gap-0.5 rounded-xl border-2 py-2.5 transition-all duration-200"
+                                style={{
+                                  borderColor: selected ? "var(--theme-primary)" : "hsl(var(--border))",
+                                  backgroundColor: selected
+                                    ? "color-mix(in srgb, var(--theme-primary) 10%, white)"
+                                    : "white",
+                                }}
+                              >
+                                <span className="text-sm font-extrabold text-gray-800">{n}x</span>
+                                <span className="text-[10px] text-gray-500">{formatPrice(Math.ceil(each))}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <p className="mt-3 text-xs leading-relaxed text-gray-600">
+                          Your first installment of{" "}
+                          <strong>{formatPrice(Math.ceil(grandTotal / form.installmentCount))}</strong> is charged now via Paystack.
+                          You can pay the rest anytime from your profile.
+                        </p>
+                      </>
+                    )}
+                  </motion.div>
+                )}
+
+                {formErrors.paymentMethod && (
+                  <p className="mt-2 flex items-center gap-1 text-xs text-red-500">
+                    <AlertCircle size={11} /> {formErrors.paymentMethod}
+                  </p>
                 )}
               </motion.div>
 
@@ -1394,16 +1453,14 @@ export default function CheckoutPage() {
                   {isSubmitting ? (
                     <>
                       <Loader2 size={16} className="animate-spin" />
-                      {form.paymentMethod === "paystack"
-                        ? "Initializing payment…"
-                        : "Placing order…"}
+                      Initializing payment…
                     </>
                   ) : (
                     <>
                       <CheckCircle2 size={16} />
-                      {form.paymentMethod === "paystack"
-                        ? `Pay ${formatPrice(grandTotal)}`
-                        : "Place order"}
+                      {form.paymentMethod === "installment"
+                        ? `Pay first installment — ${formatPrice(Math.ceil(grandTotal / form.installmentCount))}`
+                        : `Pay ${formatPrice(grandTotal)}`}
                     </>
                   )}
                 </motion.button>
