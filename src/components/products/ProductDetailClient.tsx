@@ -26,6 +26,7 @@ import { useRelatedProducts } from "@/hooks/use-store-api"
 import { toCardProduct, toProductCategory } from "@/lib/products"
 import { ALLOWED_INSTALLMENT_COUNTS, computeInstallmentAmounts } from "@/lib/installments"
 import ProductAskAI from "@/components/products/ProductAskAI"
+import Image from "next/image"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -260,10 +261,11 @@ const handleBuyWithInstallments = () => {
           >
             {selectedImage?.image ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 src={selectedImage.image}
                 alt={product.name}
                 className="h-full w-full object-contain p-6"
+                fill
               />
             ) : (
               <div className="flex h-full items-center justify-center text-gray-300">No image</div>
@@ -299,10 +301,11 @@ const handleBuyWithInstallments = () => {
                   title={image.color}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <Image
                     src={image.image}
                     alt={image.color}
                     className="h-full w-full object-contain p-2"
+                    fill
                   />
                 </button>
               ))}
