@@ -316,7 +316,7 @@ const handleBuyWithInstallments = () => {
             <p className="text-xs font-black uppercase tracking-widest text-[var(--theme-primary)]">
               {product.category}
             </p>
-            <h1 className="mt-2 text-2xl font-black leading-tight text-gray-900 md:text-4xl">
+            <h1 className="mt-2 text-2xl font-black leading-tight text-gray-900 ">
               {product.name}
             </h1>
             {product.brand && (
