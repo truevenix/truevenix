@@ -313,9 +313,7 @@ const handleBuyWithInstallments = () => {
         {/* Purchase panel */}
         <div className="space-y-5">
           <div>
-            <p className="text-xs font-black uppercase tracking-widest text-[var(--theme-primary)]">
-              {product.category}
-            </p>
+          
             <h1 className="mt-2 text-2xl font-black leading-tight text-gray-900 ">
               {product.name}
             </h1>
