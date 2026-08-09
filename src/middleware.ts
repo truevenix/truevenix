@@ -34,6 +34,7 @@ const publicRoutes = [
   "/product/[id]",
   "/food/[id]",
   "/room/[id]",
+  "/profile",
   "/shop",
   "/api/flutterwave/webhook",
 
