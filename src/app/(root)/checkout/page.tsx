@@ -477,15 +477,13 @@ function CheckoutPageInner() {
 
   // ── Promo code ──────────────────────────────────────────────────────────
   // Applied here on checkout (not the cart page) — mirrors the Expo app flow.
+  // Promo codes are a paystack-only perk: they don't apply to installment
+  // plans, so the discount and the input UI are both gated on payment method
+  // below (once `form` exists).
   const [promoInput, setPromoInput] = useState("")
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; percentage: number } | null>(null)
   const [promoError, setPromoError] = useState("")
   const [isValidatingPromo, setIsValidatingPromo] = useState(false)
-
-  const discountAmount = appliedPromo ? Math.round((totalPrice * appliedPromo.percentage) / 100) : 0
-
-  // Grand total = subtotal - promo discount + delivery
-  const grandTotal = totalPrice - discountAmount + deliveryFee
 
   const validatePromo = async () => {
     const code = promoInput.trim()
@@ -537,6 +535,16 @@ function CheckoutPageInner() {
     installmentCount: deepLinkCount as 2 | 3 | 4,
     notes: "",
   })
+
+  // Promo codes are a paystack-only perk — they don't apply to installment
+  // plans, so no discount is taken off the total once installment is selected.
+  const isInstallmentMethod = form.paymentMethod === "installment"
+  const discountAmount = appliedPromo && !isInstallmentMethod
+    ? Math.round((totalPrice * appliedPromo.percentage) / 100)
+    : 0
+
+  // Grand total = subtotal - promo discount + delivery
+  const grandTotal = totalPrice - discountAmount + deliveryFee
 
   // ── Address state ──────────────────────────────────────────────────────────
   const [addresses, setAddresses]           = useState<Address[]>([])
@@ -758,7 +766,7 @@ function CheckoutPageInner() {
           paymentMethod: form.paymentMethod,
           ...(form.paymentMethod === "installment" && { installmentCount: form.installmentCount }),
           deliveryFee,
-          promoCode: appliedPromo?.code || undefined,
+          promoCode: !isInstallmentMethod && appliedPromo ? appliedPromo.code : undefined,
           items: checkoutItems,
         }),
       })
@@ -1075,7 +1083,10 @@ function CheckoutPageInner() {
                     label="Pay in installments"
                     description="Split your payment over time"
                     icon={Calendar}
-                    onSelect={() => set("paymentMethod", "installment")}
+                    onSelect={() => {
+                      set("paymentMethod", "installment")
+                      removePromo()
+                    }}
                   />
                 </div>
 
@@ -1317,7 +1328,7 @@ function CheckoutPageInner() {
                     </p>
                   )}
 
-                  {appliedPromo && (
+                  {appliedPromo && !isInstallmentMethod && (
                     <div className="flex items-center justify-between text-emerald-600">
                       <span>Promo ({appliedPromo.code})</span>
                       <span className="font-bold">- {formatPrice(discountAmount)}</span>
@@ -1340,68 +1351,70 @@ function CheckoutPageInner() {
                   </div>
                 </div>
 
-                {/* Promo code */}
-                <div className="mt-4 space-y-2">
-                  {appliedPromo ? (
-                    <div
-                      className="flex items-center justify-between rounded-xl px-3.5 py-2.5"
-                      style={{
-                        backgroundColor: "color-mix(in srgb, var(--theme-primary) 6%, white)",
-                        border: "1px solid color-mix(in srgb, var(--theme-primary) 20%, transparent)",
-                      }}
-                    >
-                      <span className="flex items-center gap-2 text-xs font-bold text-gray-700">
-                        <Tag size={13} style={{ color: "var(--theme-primary)" }} />
-                        {appliedPromo.code} applied — {appliedPromo.percentage}% off
-                      </span>
-                      <button
-                        type="button"
-                        onClick={removePromo}
-                        className="flex h-6 w-6 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                        aria-label="Remove promo code"
+                {/* Promo code — not applicable to installment plans */}
+                {!isInstallmentMethod && (
+                  <div className="mt-4 space-y-2">
+                    {appliedPromo ? (
+                      <div
+                        className="flex items-center justify-between rounded-xl px-3.5 py-2.5"
+                        style={{
+                          backgroundColor: "color-mix(in srgb, var(--theme-primary) 6%, white)",
+                          border: "1px solid color-mix(in srgb, var(--theme-primary) 20%, transparent)",
+                        }}
                       >
-                        <X size={13} />
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex gap-2">
-                        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border-2 px-3.5 py-1" style={{ borderColor: "hsl(var(--border))" }}>
-                          <Tag size={14} className="flex-shrink-0 text-gray-400" />
-                          <input
-                            value={promoInput}
-                            onChange={(e) => {
-                              setPromoInput(e.target.value)
-                              setPromoError("")
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault()
-                                validatePromo()
-                              }
-                            }}
-                            placeholder="Promo code"
-                            className="h-9 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400"
-                          />
-                        </div>
+                        <span className="flex items-center gap-2 text-xs font-bold text-gray-700">
+                          <Tag size={13} style={{ color: "var(--theme-primary)" }} />
+                          {appliedPromo.code} applied — {appliedPromo.percentage}% off
+                        </span>
                         <button
                           type="button"
-                          onClick={validatePromo}
-                          disabled={isValidatingPromo}
-                          className="shrink-0 rounded-xl px-4 text-sm font-bold text-white transition-all disabled:opacity-60"
-                          style={{ backgroundColor: "var(--theme-primary)" }}
+                          onClick={removePromo}
+                          className="flex h-6 w-6 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                          aria-label="Remove promo code"
                         >
-                          {isValidatingPromo ? <Loader2 size={14} className="animate-spin" /> : "Apply"}
+                          <X size={13} />
                         </button>
                       </div>
-                      {promoError && (
-                        <p className="flex items-center gap-1 text-xs font-bold text-red-500">
-                          <AlertCircle size={11} /> {promoError}
-                        </p>
-                      )}
-                    </>
-                  )}
-                </div>
+                    ) : (
+                      <>
+                        <div className="flex gap-2">
+                          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border-2 px-3.5 py-1" style={{ borderColor: "hsl(var(--border))" }}>
+                            <Tag size={14} className="flex-shrink-0 text-gray-400" />
+                            <input
+                              value={promoInput}
+                              onChange={(e) => {
+                                setPromoInput(e.target.value)
+                                setPromoError("")
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault()
+                                  validatePromo()
+                                }
+                              }}
+                              placeholder="Promo code"
+                              className="h-9 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={validatePromo}
+                            disabled={isValidatingPromo}
+                            className="shrink-0 rounded-xl px-4 text-sm font-bold text-white transition-all disabled:opacity-60"
+                            style={{ backgroundColor: "var(--theme-primary)" }}
+                          >
+                            {isValidatingPromo ? <Loader2 size={14} className="animate-spin" /> : "Apply"}
+                          </button>
+                        </div>
+                        {promoError && (
+                          <p className="flex items-center gap-1 text-xs font-bold text-red-500">
+                            <AlertCircle size={11} /> {promoError}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
 
                 {/* Delivering-to preview */}
                 {selectedAddr && (
