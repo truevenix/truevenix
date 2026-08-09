@@ -2,20 +2,20 @@
 // components/EmptyCartMockup.tsx
 //
 // Illustration for the "your cart is empty" state. Every brand-colored path
-// in the artwork (the vector-traced wordmark/icon, the phone-screen purple
-// accents, and the background sparkle) references the CSS custom property
-// CategoryThemeProvider already sets on <html> — `--theme-primary` — via
-// plain `fill="var(--theme-primary)"` / `color-mix(in srgb, var(--theme-
-// primary) X%, transparent)` values baked into the markup below. That means
-// this one asset re-colors itself for whichever category theme is active
-// (orange for "All", violet for Gadgets, green for Solar, etc.) with no
-// per-brand duplicate file and no JS color math — it just inherits whatever
-// the provider has already written to the page.
+// in the artwork — the vector-traced wordmark/icon, the phone-screen purple
+// accents, the background sparkle, and the character's shirt/arm — references
+// the CSS custom property CategoryThemeProvider already sets on <html> —
+// `--theme-primary` — via plain `fill="var(--theme-primary)"` / `color-mix(in
+// srgb, var(--theme-primary) X%, transparent)` values baked into the markup
+// below. That means this one asset re-colors itself for whichever category
+// theme is active (orange for "All", violet for Gadgets, green for Solar,
+// etc.) with no per-brand duplicate file and no JS color math — it just
+// inherits whatever the provider has already written to the page.
 //
 // Non-brand elements (phone bezel, skin tone, product-card placeholder
-// swatches, the character's shirt, category-picker chips) are intentionally
-// left as their original fixed colors — they're generic mockup chrome /
-// sample content, not identity, so they shouldn't shift with the theme.
+// swatches, category-picker chips) are intentionally left as their original
+// fixed colors — they're generic mockup chrome / sample content, not
+// identity, so they shouldn't shift with the theme.
 
 const SVG_MARKUP = `<svg viewBox="0 0 320 380" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
   <!-- background accents -->
@@ -31,7 +31,7 @@ const SVG_MARKUP = `<svg viewBox="0 0 320 380" width="100%" height="100%" xmlns=
   <circle cx="12" cy="300" r="3" fill="color-mix(in srgb, var(--theme-primary) 25%, transparent)" />
 
   <!-- caricature torso, behind the phone -->
-  <path d="M190 165 C 245 135, 305 145, 320 195 L 320 380 L 205 380 C 198 320, 188 225, 190 165 Z" fill="#2F6FED" />
+  <path d="M190 165 C 245 135, 305 145, 320 195 L 320 380 L 205 380 C 198 320, 188 225, 190 165 Z" fill="var(--theme-primary)" />
   <path d="M205 168 Q228 150 255 165" stroke="#FFFFFF" stroke-width="3" opacity="0.25" fill="none" stroke-linecap="round" />
 
   <!-- phone -->
@@ -279,7 +279,7 @@ const SVG_MARKUP = `<svg viewBox="0 0 320 380" width="100%" height="100%" xmlns=
   <text x="115" y="311" font-size="9" font-weight="800" fill="var(--theme-primary)">&#8358;65,000</text>
 
   <!-- left arm, fist (only hand shown, holding the phone) -->
-  <path d="M225 300 C 175 300, 120 300, 82 297" fill="none" stroke="#2F6FED" stroke-width="30" stroke-linecap="round" />
+  <path d="M225 300 C 175 300, 120 300, 82 297" fill="none" stroke="var(--theme-primary)" stroke-width="30" stroke-linecap="round" />
   <circle cx="90" cy="298" r="15" fill="none" stroke="#FFC229" stroke-width="6" />
   <circle cx="62" cy="297" r="15" fill="#9C6B45" />
   <path d="M54 291 q8 -4 16 0" stroke="#241C15" stroke-width="1" opacity="0.25" fill="none" />

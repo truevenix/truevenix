@@ -30,7 +30,7 @@ export default function CartPage() {
 
   if (items.length === 0) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-10">
+      <main className="flex min-h-screen flex-col items-center bg-gray-50 px-4 pt-14 pb-10">
         <div className="flex max-w-sm flex-col items-center gap-5 text-center">
           <EmptyCartMockup className="h-64 w-56" />
           <div>
