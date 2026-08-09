@@ -177,6 +177,11 @@ const [trackWidth, setTrackWidth] = useState(0)
     return () => document.removeEventListener("mousedown", handleClick)
   }, [])
 
+function truncateText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text
+  return text.slice(0, maxLength) + "..."
+}
+
   async function handleSaveAddress(data: AddressForm) {
     await saveAddress(data, savedAddress?.id)
     setAddressModalOpen(false)
@@ -252,7 +257,7 @@ const [trackWidth, setTrackWidth] = useState(0)
                   className={`${brandFont.className} text-2xl md:text-3xl font-bold tracking-tight whitespace-nowrap`}
                   style={{ color: theme.primary }}
                 >
-                  {title || "TRUEVENIX"}
+                 {title ? truncateText(title, 17) : "TRUEVENIX"}
                 </span>
               </Link>
 
