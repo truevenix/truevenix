@@ -6,12 +6,27 @@
 // any drift here would make the webhook's amount-verification step reject
 // legitimate payments.
 
-export const ALLOWED_INSTALLMENT_COUNTS = [2, 3, 4, 6] as const
+export const ALLOWED_INSTALLMENT_COUNTS = [2, 3, 4] as const
 export type InstallmentCount = (typeof ALLOWED_INSTALLMENT_COUNTS)[number]
 
 export function isAllowedInstallmentCount(value: unknown): value is InstallmentCount {
   return ALLOWED_INSTALLMENT_COUNTS.includes(value as InstallmentCount)
 }
+
+// 1 installment = 1 month. Returns the sentence shown next to the count
+// picker, e.g. "You'll have 2 months to complete this payment." The last
+// count in ALLOWED_INSTALLMENT_COUNTS is always called the "maximum" so this
+// doesn't need editing again if the max ever changes.
+export function installmentDurationLabel(count: number): string {
+  const isMax = count === ALLOWED_INSTALLMENT_COUNTS[ALLOWED_INSTALLMENT_COUNTS.length - 1]
+  return isMax
+    ? `You'll have ${count} months maximum to complete this payment.`
+    : `You'll have ${count} month${count === 1 ? "" : "s"} to complete this payment.`
+}
+
+// Placeholder page — see handoff note. Kept as one constant so mobile and
+// web point at the same URL without needing a coordinated redeploy.
+export const INSTALLMENT_TERMS_URL = "https://www.truevenix.com/installment-terms"
 
 // Splits totalAmount into `count` installments. Every installment except the
 // last is floored to the nearest Naira so we never round up and overcharge;

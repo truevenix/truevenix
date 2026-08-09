@@ -12,6 +12,11 @@ import { formatPrice, useCart } from "@/context/cart-context"
 import { useCurrentUserWithStatus } from "@/hooks/use-current-user"
 import { AddressModal, type Address, type AddressForm } from "@/components/AddressModal"
 import { useDeliveryAddress } from "@/context/DeliveryAddressContext"
+import {
+  ALLOWED_INSTALLMENT_COUNTS,
+  installmentDurationLabel,
+  INSTALLMENT_TERMS_URL,
+} from "@/lib/installments"
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -466,8 +471,8 @@ function CheckoutPageInner() {
   // payment method is already selected — no extra click needed.
   const deepLinkMethod = searchParams.get("method") === "installment" ? "installment" : "paystack"
   const deepLinkCountRaw = Number(searchParams.get("count"))
-  const deepLinkCount = ([2, 3, 4, 6] as const).includes(deepLinkCountRaw as never)
-    ? (deepLinkCountRaw as 2 | 3 | 4 | 6)
+  const deepLinkCount = ALLOWED_INSTALLMENT_COUNTS.includes(deepLinkCountRaw as never)
+    ? (deepLinkCountRaw as 2 | 3 | 4)
     : 3
 
   // ── Promo code ──────────────────────────────────────────────────────────
@@ -529,7 +534,7 @@ function CheckoutPageInner() {
     customerName: "",
     customerEmail: "",
     paymentMethod: deepLinkMethod as "paystack" | "installment",
-    installmentCount: deepLinkCount as 2 | 3 | 4 | 6,
+    installmentCount: deepLinkCount as 2 | 3 | 4,
     notes: "",
   })
 
@@ -1114,8 +1119,8 @@ function CheckoutPageInner() {
                         <p className="mb-2.5 text-xs font-bold uppercase tracking-wider text-gray-500">
                           Number of installments
                         </p>
-                        <div className="grid grid-cols-4 gap-2">
-                          {([2, 3, 4, 6] as const).map((n) => {
+                        <div className="grid grid-cols-3 gap-2">
+                          {ALLOWED_INSTALLMENT_COUNTS.map((n) => {
                             const selected = form.installmentCount === n
                             const each = grandTotal / n
                             return (
@@ -1137,11 +1142,23 @@ function CheckoutPageInner() {
                             )
                           })}
                         </div>
-                        <p className="mt-3 text-xs leading-relaxed text-gray-600">
+                        <p className="mt-3 text-xs font-medium text-gray-600">
+                          {installmentDurationLabel(form.installmentCount)}
+                        </p>
+                        <p className="mt-1.5 text-xs leading-relaxed text-gray-600">
                           Your first installment of{" "}
                           <strong>{formatPrice(Math.ceil(grandTotal / form.installmentCount))}</strong> is charged now via Paystack.
                           You can pay the rest anytime from your profile.
                         </p>
+                        <a
+                          href={INSTALLMENT_TERMS_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-block text-xs font-bold underline"
+                          style={{ color: "var(--theme-primary)" }}
+                        >
+                          Read our terms for installment payment
+                        </a>
                       </>
                     )}
                   </motion.div>
