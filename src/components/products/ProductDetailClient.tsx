@@ -24,7 +24,12 @@ import { buildCartKey, formatPrice, useCart } from "@/context/cart-context"
 import { useCurrentUser } from "@/hooks/use-current-user"
 import { useRelatedProducts } from "@/hooks/use-store-api"
 import { toCardProduct, toProductCategory } from "@/lib/products"
-import { ALLOWED_INSTALLMENT_COUNTS, computeInstallmentAmounts } from "@/lib/installments"
+import {
+  ALLOWED_INSTALLMENT_COUNTS,
+  computeInstallmentAmounts,
+  installmentDurationLabel,
+  INSTALLMENT_TERMS_URL,
+} from "@/lib/installments"
 import ProductAskAI from "@/components/products/ProductAskAI"
 import Image from "next/image"
 
@@ -143,7 +148,7 @@ export default function ProductDetailClient({ product }: { product: ProductDetai
   const [selectedImage, setSelectedImage] = useState(product.images[0])
   const [quantity, setQuantity] = useState(1)
   const [wished, setWished] = useState(false)
-  const [installmentCount, setInstallmentCount] = useState<2 | 3 | 4 | 6>(3)
+  const [installmentCount, setInstallmentCount] = useState<2 | 3 | 4>(3)
   const [buyingWithInstallments, setBuyingWithInstallments] = useState(false)
   const defaultSize = product.sizeOptions?.find(s => s.isDefault)
   ?? product.sizeOptions?.[0]
@@ -518,6 +523,10 @@ const handleBuyWithInstallments = () => {
               })}
             </div>
 
+            <p className="mb-3 text-center text-[11px] font-medium text-gray-600">
+              {installmentDurationLabel(installmentCount)}
+            </p>
+
             <button
               onClick={handleBuyWithInstallments}
               disabled={!product.inStock || buyingWithInstallments}
@@ -535,6 +544,16 @@ const handleBuyWithInstallments = () => {
                 ? "First payment today via Paystack. Pay the rest anytime from your profile."
                 : "You'll need to sign in at checkout to use installments."}
             </p>
+
+            <a
+              href={INSTALLMENT_TERMS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 block text-center text-[11px] font-semibold underline"
+              style={{ color: "var(--theme-primary)" }}
+            >
+              Read our terms for installment payment
+            </a>
           </div>
 
         </div>
