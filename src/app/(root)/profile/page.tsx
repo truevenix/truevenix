@@ -19,11 +19,15 @@ import {
   HelpCircle, FileText, ShieldCheck, LogOut, ChevronRight, Camera,
   Plus, Trash2, Edit2, Loader2, Home, Briefcase, Repeat, Bell, BellOff,
   CreditCard,
+  LogIn,
 } from "lucide-react"
+import { EmptyProfileMockup } from "@/components/EmptyProfileMockup"
 import { AddressModal, type Address, type AddressForm } from "@/components/AddressModal"
 import { useCurrentUser } from "@/hooks/use-current-user"
 import { handleProfileImageSaveToFirebase } from "@/lib/upload"
 import { useWebPush } from "@/hooks/use-web-push"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
 
 // ─── Row item ─────────────────────────────────────────────────────────────────
 
@@ -251,27 +255,26 @@ export default function ProfilePage() {
     .toUpperCase()
 
   if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center space-y-4"
-        >
-          <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto bg-[var(--theme-primary-light)]">
-            <User className="w-10 h-10 text-[var(--theme-primary)]" />
-          </div>
-          <p className="text-lg font-bold text-gray-700">Not signed in</p>
-          <a
-            href="/auth/login"
-            className="inline-block px-8 py-3 text-white font-bold rounded-full transition-all duration-200 bg-[var(--theme-primary)] hover:opacity-90"
-          >
+  return (
+    <main className="flex min-h-screen flex-col items-center bg-gray-50 px-4 pt-14 pb-10">
+      <div className="flex max-w-sm flex-col items-center gap-5 text-center">
+        <EmptyProfileMockup className="h-72 w-64" />
+        <div>
+          <h1 className="text-2xl font-black text-gray-900">You're not signed in</h1>
+          <p className="mt-2 text-sm text-gray-500">
+            Sign in to see your details, saved addresses, and order history.
+          </p>
+        </div>
+        <Button asChild>
+          <Link href="/auth/login">
+            <LogIn size={16} />
             Sign In
-          </a>
-        </motion.div>
+          </Link>
+        </Button>
       </div>
-    )
-  }
+    </main>
+  )
+}
 
   return (
     <div className="min-h-screen bg-white">
