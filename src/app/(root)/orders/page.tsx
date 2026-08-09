@@ -8,21 +8,9 @@
 import { Suspense, useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
+import { EmptyOrderMockup } from "@/components/EmptyOrderMockup"
 import { useSearchParams } from "next/navigation"
-import {
-  ArrowLeft,
-  ArrowRight,
-  Calendar,
-  CreditCard,
-  LogIn,
-  Mail,
-  Package,
-  RefreshCw,
-  Search,
-  Truck,
-  User,
-  Zap,
-} from "lucide-react"
+import {ArrowLeft,ArrowRight,Calendar,CreditCard,LogIn,Mail,Package,RefreshCw,Search,Truck,User, Zap,} from "lucide-react"
 import { useCurrentUserWithStatus } from "@/hooks/use-current-user"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -250,27 +238,26 @@ function AuthOrderList({ email }: { email: string }) {
     )
   }
 
-  if (orders.length === 0) {
-    return (
-      <div className="rounded-2xl border border-gray-100 bg-white py-16 text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--theme-primary-light)]">
-          <Package size={30} className="text-[var(--theme-primary)]" />
-        </div>
-        <p className="mt-4 text-lg font-extrabold text-gray-800">No orders yet</p>
+if (orders.length === 0) {
+  return (
+    <div className="flex flex-col items-center rounded-2xl border border-gray-100 bg-white py-12 text-center">
+      <EmptyOrderMockup className="h-64 w-56" />
+      <div className="mt-4">
+        <p className="text-lg font-extrabold text-gray-800">No orders yet</p>
         <p className="mt-1 text-sm text-gray-500">
           Your purchases will appear here once you place an order.
         </p>
-        <Link
-          href="/shop"
-          className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[var(--theme-primary)] px-6 py-2.5 text-sm font-bold text-white hover:opacity-90"
-        >
-          <Zap size={14} />
-          Browse products
-        </Link>
       </div>
-    )
-  }
-
+      <Link
+        href="/shop"
+        className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[var(--theme-primary)] px-6 py-2.5 text-sm font-bold text-white hover:opacity-90"
+      >
+        <Zap size={14} />
+        Browse products
+      </Link>
+    </div>
+  )
+}
   return (
     <div>
       <ul className="space-y-4">
@@ -400,17 +387,17 @@ function GuestOrderLookup() {
           </div>
         )}
 
-        {!loading && searched && submittedEmail && orders.length === 0 && !error && (
-          <div className="rounded-2xl border border-gray-100 bg-white py-12 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100 text-gray-400">
-              <Package size={26} />
-            </div>
-            <p className="mt-4 font-bold text-gray-800">No orders found</p>
-            <p className="mt-1 text-sm text-gray-500">
-              Try the exact email used at checkout.
-            </p>
-          </div>
-        )}
+       {!loading && searched && submittedEmail && orders.length === 0 && !error && (
+  <div className="flex flex-col items-center rounded-2xl border border-gray-100 bg-white py-12 text-center">
+    <EmptyOrderMockup className="h-64 w-56" />
+    <div className="mt-4">
+      <p className="font-bold text-gray-800">No orders found</p>
+      <p className="mt-1 text-sm text-gray-500">
+        Try the exact email used at checkout.
+      </p>
+    </div>
+  </div>
+)}
 
         {!loading && orders.length > 0 && (
           <ul className="space-y-4">
