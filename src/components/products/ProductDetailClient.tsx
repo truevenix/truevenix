@@ -148,8 +148,9 @@ export default function ProductDetailClient({ product }: { product: ProductDetai
   const [selectedImage, setSelectedImage] = useState(product.images[0])
   const [quantity, setQuantity] = useState(1)
   const [wished, setWished] = useState(false)
-  const [installmentCount, setInstallmentCount] = useState<2 | 3 | 4>(3)
+  const [installmentCount, setInstallmentCount] = useState<2 | 3 | 4>(2)
   const [buyingWithInstallments, setBuyingWithInstallments] = useState(false)
+  const [checkingOut, setCheckingOut] = useState(false)
   const defaultSize = product.sizeOptions?.find(s => s.isDefault)
   ?? product.sizeOptions?.[0]
   ?? null
@@ -228,6 +229,37 @@ const handleBuyWithInstallments = () => {
   })
 
   router.push(`/checkout?method=installment&count=${installmentCount}`)
+}
+
+// "Checkout" button — same add-to-cart-then-navigate pattern as
+// "Buy with installments" above. Without this, the button used to link
+// straight to /checkout without adding the product, so it landed on
+// whatever was already in the cart (often empty) instead of this item.
+const handleCheckoutNow = () => {
+  if (!product.inStock || checkingOut) return
+  setCheckingOut(true)
+
+  const price = selectedSize?.price ?? product.price
+  const itemName = selectedSize
+    ? `${product.name} (${selectedSize.label} — ${selectedSize.name})`
+    : product.name
+
+  Array.from({ length: quantity }).forEach(() => {
+    addToCart({
+      cartKey,
+      id: product.id,
+      name: itemName,
+      description: product.description,
+      category,
+      brand: product.brand ?? "",
+      price,
+      imageColor: selectedImage?.color ?? "Default",
+      imageColorCode: selectedImage?.colorCode ?? "#475569",
+      imageUrl: selectedImage?.image ?? "",
+    })
+  })
+
+  router.push("/checkout")
 }
 
   return (
@@ -475,13 +507,14 @@ const handleBuyWithInstallments = () => {
               <ShoppingCart size={17} />
               {alreadyInCart ? "Add more" : "Add to cart"}
             </button>
-            <Link
-              href="/checkout"
-              className="flex h-14 items-center justify-center gap-2 rounded-2xl border-2 border-[var(--theme-primary)] px-6 py-4 text-sm font-black text-[var(--theme-primary)]"
+            <button
+              onClick={handleCheckoutNow}
+              disabled={!product.inStock || checkingOut}
+              className="flex h-14 items-center justify-center gap-2 rounded-2xl border-2 border-[var(--theme-primary)] px-6 py-4 text-sm font-black text-[var(--theme-primary)] disabled:opacity-50"
             >
               <Zap size={17} />
-              Checkout
-            </Link>
+              {checkingOut ? "Redirecting…" : "Checkout"}
+            </button>
           </div>
 
           {/* Pay in installments — lets a shopper see + start a BNPL

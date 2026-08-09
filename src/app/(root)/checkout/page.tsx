@@ -103,39 +103,6 @@ function StyledInput({
   )
 }
 
-// ─── Styled textarea ───────────────────────────────────────────────────────────
-
-function StyledTextarea({
-  value,
-  onChange,
-  placeholder,
-  rows = 2,
-}: {
-  value: string
-  onChange: (v: string) => void
-  placeholder: string
-  rows?: number
-}) {
-  const [focused, setFocused] = useState(false)
-
-  return (
-    <textarea
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      rows={rows}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      className="w-full resize-none rounded-xl border-2 bg-white px-3.5 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none transition-all duration-200"
-      style={{
-        borderColor: focused ? "var(--theme-primary)" : "hsl(var(--border))",
-        boxShadow: focused
-          ? "0 0 0 3px color-mix(in srgb, var(--theme-primary) 15%, transparent)"
-          : "none",
-      }}
-    />
-  )
-}
 
 // ─── Payment method card ───────────────────────────────────────────────────────
 
@@ -467,13 +434,13 @@ function CheckoutPageInner() {
   const searchParams = useSearchParams()
 
   // Deep-link support: the product detail page's "Buy with installments"
-  // button lands here as /checkout?method=installment&count=3 so the
+  // button lands here as /checkout?method=installment&count=2 so the
   // payment method is already selected — no extra click needed.
   const deepLinkMethod = searchParams.get("method") === "installment" ? "installment" : "paystack"
   const deepLinkCountRaw = Number(searchParams.get("count"))
   const deepLinkCount = ALLOWED_INSTALLMENT_COUNTS.includes(deepLinkCountRaw as never)
     ? (deepLinkCountRaw as 2 | 3 | 4)
-    : 3
+    : 2
 
   // ── Promo code ──────────────────────────────────────────────────────────
   // Applied here on checkout (not the cart page) — mirrors the Expo app flow.
@@ -533,7 +500,6 @@ function CheckoutPageInner() {
     customerEmail: "",
     paymentMethod: deepLinkMethod as "paystack" | "installment",
     installmentCount: deepLinkCount as 2 | 3 | 4,
-    notes: "",
   })
 
   // Promo codes are a paystack-only perk — they don't apply to installment
@@ -552,6 +518,12 @@ function CheckoutPageInner() {
   const [selectedAddrId, setSelectedAddrId] = useState<string | null>(null)
   const [showModal, setShowModal]           = useState(false)
   const [editingAddr, setEditingAddr]       = useState<Address | null>(null)
+  // Once an address is already selected, the top-of-page picker collapses to
+  // a compact confirmation (the full address is already shown again in the
+  // Order Summary card) — "Change" re-opens it. Starts closed; it only ever
+  // needs to be open when there's no address yet, which the render logic
+  // below handles regardless of this flag.
+  const [addressPickerOpen, setAddressPickerOpen] = useState(false)
 
   const selectedAddr = addresses.find((a) => a.id === selectedAddrId) ?? null
 
@@ -1015,6 +987,41 @@ function CheckoutPageInner() {
                       <Plus size={14} /> Add Address
                     </button>
                   </motion.div>
+                ) : hasAddress && !addressPickerOpen ? (
+                  // Address already selected — the Order Summary card below
+                  // shows the full "Delivering to" details, so this collapses
+                  // to a one-line confirmation instead of repeating the picker.
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex items-center justify-between gap-3 rounded-2xl border p-3.5"
+                    style={{ borderColor: "color-mix(in srgb, var(--theme-primary) 20%, #e5e7eb)" }}
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <div
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                        style={{ backgroundColor: "color-mix(in srgb, var(--theme-primary) 10%, white)" }}
+                      >
+                        <Check size={15} style={{ color: "var(--theme-primary)" }} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-gray-800">
+                          {selectedAddr?.fullName || form.customerName}
+                        </p>
+                        <p className="truncate text-xs text-gray-500">
+                          {selectedAddr ? formatAddressLine(selectedAddr) : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAddressPickerOpen(true)}
+                      className="shrink-0 text-xs font-bold underline"
+                      style={{ color: "var(--theme-primary)" }}
+                    >
+                      Change
+                    </button>
+                  </motion.div>
                 ) : (
                   <div className="flex flex-col gap-3">
                     <AnimatePresence>
@@ -1023,7 +1030,10 @@ function CheckoutPageInner() {
                           key={addr.id}
                           addr={addr}
                           selected={addr.id === selectedAddrId}
-                          onSelect={() => setSelectedAddrId(addr.id)}
+                          onSelect={() => {
+                            setSelectedAddrId(addr.id)
+                            setAddressPickerOpen(false)
+                          }}
                           onEdit={() => { setEditingAddr(addr); setShowModal(true) }}
                         />
                       ))}
@@ -1180,28 +1190,6 @@ function CheckoutPageInner() {
                     <AlertCircle size={11} /> {formErrors.paymentMethod}
                   </p>
                 )}
-              </motion.div>
-
-              {/* 5. Order Notes */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.18 }}
-                className="rounded-2xl border bg-white p-5 shadow-sm"
-                style={{
-                  borderColor:
-                    "color-mix(in srgb, var(--theme-primary) 20%, hsl(var(--border)))",
-                }}
-              >
-                <h2 className="mb-3 text-sm font-extrabold text-gray-800">
-                  Order Notes{" "}
-                  <span className="font-normal text-gray-400">(optional)</span>
-                </h2>
-                <StyledTextarea
-                  value={form.notes}
-                  onChange={(v) => set("notes", v)}
-                  placeholder="Any special delivery instructions… e.g. 'Call before arrival'"
-                />
               </motion.div>
 
               {/* Delivery notice */}
