@@ -8,7 +8,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { ArrowLeft, Package, Loader2, CheckCircle2, Clock, CreditCard, AlertCircle } from "lucide-react"
+import { ArrowLeft, Package, Loader2, CheckCircle2, Clock, CreditCard, AlertCircle, ChevronRight } from "lucide-react"
 import { toast } from "sonner"
 import { formatPrice } from "@/context/cart-context"
 
@@ -92,6 +92,7 @@ function PlanCard({ plan, onPay, payingId }: {
       animate={{ opacity: 1, y: 0 }}
       className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4"
     >
+      <Link href={`/profile/installments/${plan.id}`} className="block">
       <div className="flex items-start gap-3">
         {firstItem?.imageUrl ? (
           <div
@@ -121,6 +122,8 @@ function PlanCard({ plan, onPay, payingId }: {
             </span>
           </div>
         </div>
+
+        <ChevronRight size={16} className="shrink-0 text-gray-300 mt-1" />
       </div>
 
       <div className="mt-4">
@@ -151,10 +154,11 @@ function PlanCard({ plan, onPay, payingId }: {
           </div>
         ))}
       </div>
+      </Link>
 
       {plan.status === "ACTIVE" && plan.nextPayment && (
         <button
-          onClick={() => onPay(plan)}
+          onClick={(e) => { e.preventDefault(); onPay(plan) }}
           disabled={isPaying}
           className="mt-4 w-full flex items-center justify-center gap-2 rounded-2xl py-2.5 text-sm font-bold text-white transition-all duration-200 disabled:opacity-60"
           style={{ backgroundColor: "var(--theme-primary)" }}

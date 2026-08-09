@@ -217,20 +217,44 @@ export default function InstallmentTermsPage() {
           </div>
         </Card>
 
-        {/* 4. Existing plans */}
-        <Card>
-          <SectionHeading number="4" title="Existing Installment Plans" />
-          <p className="text-sm text-gray-600 leading-relaxed">
-            If you have an active installment plan created before this policy took effect —
-            including any plan on an installment count no longer offered — it stays exactly as it
-            was created. You'll keep paying it down under its original terms; these terms apply to
-            new installment plans going forward.
-          </p>
+        {/* 4. Missed payments */}
+        <Card style={{ borderColor: PRIMARY_BORDER }}>
+          <SectionHeading number="4" title="Missed Payments" />
+          <div className="flex flex-col gap-3">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 size={16} className="text-emerald-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-gray-700 leading-relaxed">
+                <strong>We don&apos;t penalize a missed installment.</strong> There&apos;s no late fee, no
+                interest, and no lockout on your account if an installment goes past its expected
+                date.
+              </p>
+            </div>
+            <div className="flex items-start gap-3">
+              <Clock size={16} style={{ color: PRIMARY }} className="flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-gray-700 leading-relaxed">
+                Simply pay the missed installment whenever you&apos;re next ready to pay — the{" "}
+                <strong>&quot;Pay next installment&quot;</strong> button in your Installment Payments
+                section always charges whichever installment is still outstanding, so there&apos;s
+                nothing extra to catch up on beyond that amount.
+              </p>
+            </div>
+            <div className="flex items-start gap-3">
+              <CreditCard size={16} style={{ color: PRIMARY }} className="flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-gray-700 leading-relaxed">
+                Don&apos;t want to wait out the rest of the schedule? Open the plan&apos;s details page
+                and use <strong>&quot;Pay everything now&quot;</strong> to settle the full remaining
+                balance in a single payment — your order is treated as fully paid the moment that
+                goes through.
+              </p>
+            </div>
+          </div>
         </Card>
 
-        {/* 5. Returns & installments */}
+        
+
+        {/* 6. Returns & installments */}
         <Card>
-          <SectionHeading number="5" title="Returns, Refunds & Installments" />
+          <SectionHeading number="6" title="Returns, Refunds & Installments" />
           <p className="text-sm text-gray-600 leading-relaxed">
             If an item bought on installments is eligible for a return or refund under our{" "}
             <Link href="/return-policy" className="font-semibold hover:underline" style={{ color: PRIMARY }}>

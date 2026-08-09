@@ -75,7 +75,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true }, { status: 200 })
     }
 
-    // ── 4. Installment payments have their own reference format ───────────
+    // ── 4. "Pay complete" charges route by metadata, not a reference lookup ──
+    // (see /api/installments/pay: mode "full" mints a one-off reference that
+    // never lives on an InstallmentPayment row) — check this before the
+    // per-installment lookup below.
+    if (metadata.type === "installment_full" && metadata.installmentPlanId) {
+      return handleInstallmentFullCharge(metadata.installmentPlanId as string, amountKobo, channel, paymentReference)
+    }
+
+    // ── 5. Installment payments have their own reference format ───────────
     // (see lib/installments.ts: `${orderReferenceId}-INST-${n}`), so check
     // that table first — a hit here means this charge is one installment
     // toward a plan, not a full one-off order payment.
@@ -88,7 +96,7 @@ export async function POST(req: NextRequest) {
       return handleInstallmentCharge(installmentPayment, amountKobo, channel)
     }
 
-    // ── 5. Otherwise, treat this as a normal one-off order payment ────────
+    // ── 6. Otherwise, treat this as a normal one-off order payment ────────
     let order = await db.order.findUnique({
       where: { referenceId: paymentReference },
       include: { user: true, orderItems: true },
@@ -113,13 +121,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true }, { status: 200 })
     }
 
-    // ── 6. Already processed guard ───────────────────────────────────────
+    // ── 7. Already processed guard ───────────────────────────────────────
     if (order.status === "PAID") {
       console.log(`[venix webhook] Order ${order.id} already PAID — skipping`)
       return NextResponse.json({ ok: true }, { status: 200 })
     }
 
-    // ── 7. Amount verification (10 Naira tolerance) ──────────────────────
+    // ── 8. Amount verification (10 Naira tolerance) ──────────────────────
     const expectedKobo = Math.round(order.amount * 100)
     const diff = Math.abs(expectedKobo - amountKobo)
 
@@ -135,7 +143,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "amount mismatch" }, { status: 400 })
     }
 
-    // ── 8. Mark order as paid ────────────────────────────────────────────
+    // ── 9. Mark order as paid ────────────────────────────────────────────
     await db.order.update({
       where: { id: order.id },
       data: {
@@ -154,7 +162,7 @@ export async function POST(req: NextRequest) {
 
     console.log(`[venix webhook] Order ${order.id} marked PAID (${order.user ? "user" : "guest"})`)
 
-    // ── 9. Resolve customer identity for confirmation email ─────────────
+    // ── 10. Resolve customer identity for confirmation email ─────────────
     // order.userId may be set, but order.user could also be null if the
     // session was lost and only customerEmail was stored — fall back chain.
     const customerEmail = order.user?.email ?? order.customerEmail ?? null
@@ -164,7 +172,7 @@ export async function POST(req: NextRequest) {
       (order.customerEmail ? order.customerEmail.split("@")[0] : "Customer")
     const customerPhone = order.customerPhone ?? order.user?.phoneNumber ?? null
 
-    // ── 10. Send confirmation emails (customer + admin) ──────────────────
+    // ── 11. Send confirmation emails (customer + admin) ──────────────────
     try {
       const emailItems: MailOrderItem[] = order.orderItems.map((item) => ({
         name: item.name,
@@ -305,6 +313,139 @@ async function handleInstallmentCharge(
     })
   } catch (emailErr) {
     console.error(`[venix webhook] Installment email failed for plan ${plan.id}:`, emailErr)
+  }
+
+  return NextResponse.json({ ok: true }, { status: 200 })
+}
+
+// ── "Pay complete" charge handling ───────────────────────────────────────
+// Settles every remaining unpaid installment on the plan in one shot. This
+// charge was never tied to a single InstallmentPayment.reference (see
+// /api/installments/pay, mode "full"), so it's routed here by
+// `metadata.installmentPlanId` instead of a reference lookup, and verified
+// against the sum of whatever was still unpaid at charge time rather than
+// one row's amount.
+async function handleInstallmentFullCharge(
+  planId: string,
+  amountKobo: number,
+  channel: string,
+  paymentReference: string
+) {
+  const plan = await db.installmentPlan.findUnique({
+    where: { id: planId },
+    include: {
+      payments: { orderBy: { installmentNo: "asc" } },
+      order: { include: { user: true, orderItems: true } },
+    },
+  })
+
+  if (!plan) {
+    console.warn(`[venix webhook] installment_full charge for unknown plan ${planId}`)
+    return NextResponse.json({ ok: true }, { status: 200 })
+  }
+
+  // ── Already processed guard ────────────────────────────────────────────
+  if (plan.status === "COMPLETED") {
+    console.log(`[venix webhook] Plan ${plan.id} already COMPLETED — skipping duplicate full-payment webhook`)
+    return NextResponse.json({ ok: true }, { status: 200 })
+  }
+
+  const unpaidPayments = plan.payments.filter((p) => p.status !== "PAID")
+  if (unpaidPayments.length === 0) {
+    console.log(`[venix webhook] Plan ${plan.id} has no unpaid installments left — skipping`)
+    return NextResponse.json({ ok: true }, { status: 200 })
+  }
+
+  // ── Amount verification against everything that was still owed (10 Naira
+  // tolerance) ────────────────────────────────────────────────────────────
+  const remainingAmount = unpaidPayments.reduce((sum, p) => sum + p.amount, 0)
+  const expectedKobo = Math.round(remainingAmount * 100)
+  const diff = Math.abs(expectedKobo - amountKobo)
+
+  if (diff > 1000) {
+    console.warn(
+      `[venix webhook] Amount mismatch on full payment for plan ${plan.id}. ` +
+      `Expected: ${expectedKobo} kobo, Got: ${amountKobo} kobo`
+    )
+    // Nothing here is safe to auto-fail — this charge doesn't own any single
+    // InstallmentPayment row, and the mismatch could mean an installment was
+    // paid through a different tab in between. Flag for manual reconciliation.
+    console.error("[venix webhook] Orphaned installment_full payment:", {
+      planId: plan.id,
+      reference: paymentReference,
+      amount: amountKobo / 100,
+      expected: remainingAmount,
+      channel,
+      receivedAt: new Date().toISOString(),
+    })
+    return NextResponse.json({ error: "amount mismatch" }, { status: 400 })
+  }
+
+  const order = plan.order
+  const now = new Date()
+
+  await db.$transaction([
+    ...unpaidPayments.map((p) =>
+      db.installmentPayment.update({
+        where: { id: p.id },
+        data: { status: "PAID", paidAt: now },
+      })
+    ),
+    db.installmentPlan.update({
+      where: { id: plan.id },
+      data: { amountPaid: plan.totalAmount, status: "COMPLETED" },
+    }),
+    db.order.update({
+      where: { id: order.id },
+      data: {
+        status: "PAID",
+        deliveryStatus: order.deliveryStatus === "PENDING" ? "CONFIRMED" : order.deliveryStatus,
+        paidAt: now,
+        paymentProvider: "paystack",
+        statusUpdates: {
+          create: {
+            status: "CONFIRMED",
+            note: `Remaining balance paid in full (${unpaidPayments.length} installment${unpaidPayments.length === 1 ? "" : "s"}) — order fully paid.`,
+          },
+        },
+      },
+    }),
+  ])
+
+  console.log(
+    `[venix webhook] Plan ${plan.id} paid in full via one charge ` +
+    `(${unpaidPayments.length} installments, order ${order.id})`
+  )
+
+  // ── Confirmation email — best-effort, never fails the webhook ─────────
+  try {
+    const customerEmail = order.user?.email ?? order.customerEmail ?? null
+    const customerName =
+      order.user?.name ??
+      order.customerName ??
+      (order.customerEmail ? order.customerEmail.split("@")[0] : "Customer")
+    const customerPhone = order.customerPhone ?? order.user?.phoneNumber ?? null
+
+    const emailItems: MailOrderItem[] = order.orderItems.map((item) => ({
+      name: item.name,
+      quantity: item.quantity,
+      price: item.price,
+      subtotal: item.quantity * item.price,
+      variant: item.imageColor && item.imageColor !== "Default" ? item.imageColor : undefined,
+    }))
+
+    await sendOrderEmails({
+      customerName,
+      customerEmail,
+      customerPhone,
+      orderReference: order.referenceId,
+      items: emailItems,
+      totalAmount: remainingAmount,
+      paymentMethod: channel || "card",
+      paymentReference,
+    })
+  } catch (emailErr) {
+    console.error(`[venix webhook] Full-payment email failed for plan ${plan.id}:`, emailErr)
   }
 
   return NextResponse.json({ ok: true }, { status: 200 })
