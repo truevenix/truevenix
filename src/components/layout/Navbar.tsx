@@ -277,7 +277,7 @@ function truncateText(text: string, maxLength: number): string {
     </div>
 
     <p className="text-xs md:text-sm font-semibold text-gray-800 max-w-[120px] truncate">
-      {deliverToLabel}
+      {truncateText(deliverToLabel, 12)}
     </p>
   </div>
 </button>
