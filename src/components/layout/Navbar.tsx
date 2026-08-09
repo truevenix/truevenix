@@ -1,4 +1,4 @@
-//src/components/layout/Navbar.tsx
+// src/components/layout/Navbar.tsx
 "use client"
 
 import { useState, useRef, useEffect } from "react"
@@ -41,7 +41,13 @@ export const CATEGORY_LABELS: Record<string, string> = {
 }
 
 type Props = {
-  subcategories: Record<string, string[]>
+  subcategories?: Record<string, string[]>
+  // New mobile view props
+  showSearch?: boolean
+  title?: string
+  showDeliverTo?: boolean
+  showCart?: boolean
+  showMobileMenu?: boolean
 }
 
 // ─── user avatar ───────────────────────────────────────────────────────────
@@ -75,7 +81,14 @@ function UserAvatar({ name, image, size = 32 }: { name?: string | null; image?: 
   )
 }
 
-export default function Navbar({ subcategories }: Props) {
+export default function Navbar({ 
+  subcategories = {}, 
+  showSearch = true, 
+  title,
+  showDeliverTo = true,
+  showCart = true,
+  showMobileMenu = true
+}: Props) {
   const { theme } = useTheme()
   const { totalItems, setIsCartOpen } = useCart()
   const { data: session } = useSession()
@@ -138,7 +151,7 @@ const [trackWidth, setTrackWidth] = useState(0)
   const closeTimer = useRef<NodeJS.Timeout | null>(null)
 
   const parentCategories = Object.keys(CATEGORY_LABELS).filter(
-    (key) => (subcategories[key]?.length ?? 0) > 0
+    (key) => (subcategories?.[key]?.length ?? 0) > 0
   )
 
   function openMega() {
@@ -239,13 +252,16 @@ const [trackWidth, setTrackWidth] = useState(0)
                   className={`${brandFont.className} text-2xl md:text-3xl font-bold tracking-tight whitespace-nowrap`}
                   style={{ color: theme.primary }}
                 >
-                  TRUEVENIX
+                  {title || "TRUEVENIX"}
                 </span>
               </Link>
 
+             {/* Deliver To - hidden on mobile if showDeliverTo is false */}
              <button
   onClick={() => setAddressModalOpen(true)}
-  className="flex items-center gap-1.5 pl-2 pr-3 py-2 rounded-full hover:bg-gray-100 transition-colors text-left"
+  className={`items-center gap-1.5 pl-2 pr-3 py-2 rounded-full hover:bg-gray-100 transition-colors text-left ${
+    showDeliverTo ? 'flex' : 'hidden md:flex'
+  }`}
 >
   <div className="leading-tight min-w-0">
     <div className="flex items-center gap-1 whitespace-nowrap">
@@ -286,22 +302,25 @@ const [trackWidth, setTrackWidth] = useState(0)
                 </Button>
               </Link>
 
-              <Button
-                variant="ghost"
-                size="nav"
-                className="relative "
-                onClick={() => setIsCartOpen(true)}
-              >
-                <ShoppingCart size={24} />
-                {totalItems > 0 && (
-                  <span
-                    className="absolute -top-1 -right-1 w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center text-white"
-                    style={{ background: theme.primary }}
-                  >
-                    {totalItems > 99 ? "99+" : totalItems}
-                  </span>
-                )}
-              </Button>
+              {/* Cart - hidden on mobile if showCart is false */}
+              {showCart && (
+                <Button
+                  variant="ghost"
+                  size="nav"
+                  className="relative"
+                  onClick={() => setIsCartOpen(true)}
+                >
+                  <ShoppingCart size={24} />
+                  {totalItems > 0 && (
+                    <span
+                      className="absolute -top-1 -right-1 w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center text-white"
+                      style={{ background: theme.primary }}
+                    >
+                      {totalItems > 99 ? "99+" : totalItems}
+                    </span>
+                  )}
+                </Button>
+              )}
 
               {/* Auth area — desktop */}
               {user ? (
@@ -332,32 +351,37 @@ const [trackWidth, setTrackWidth] = useState(0)
                 </Link>
               )}
 
-              <Button
-                variant="ghost"
-                size="nav"
-                className="md:hidden "
-                onClick={() => setMobileMenuOpen((o) => !o)}
-              >
-                {mobileMenuOpen ? <X size={20} /> : <Menu size={24} />}
-              </Button>
+              {/* Mobile Menu Button - hidden if showMobileMenu is false */}
+              {showMobileMenu && (
+                <Button
+                  variant="ghost"
+                  size="nav"
+                  className="md:hidden"
+                  onClick={() => setMobileMenuOpen((o) => !o)}
+                >
+                  {mobileMenuOpen ? <X size={20} /> : <Menu size={24} />}
+                </Button>
+              )}
             </div>
           </div>
 
-          {/* Mobile search — always visible */}
-          <div className="md:hidden pb-3">
-            <form onSubmit={handleSearch} className="relative">
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search products..."
-                className="pl-10 pr-4 h-11 rounded-full border-2 focus-visible:ring-0"
-                style={{ borderColor: theme.border }}
-              />
-              <button type="submit" className="absolute left-3 top-1/2 -translate-y-1/2">
-                <Search size={18} style={{ color: theme.primary }} />
-              </button>
-            </form>
-          </div>
+          {/* Mobile search — hidden if showSearch is false */}
+          {showSearch && (
+            <div className="md:hidden pb-3">
+              <form onSubmit={handleSearch} className="relative">
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search products..."
+                  className="pl-10 pr-4 h-11 rounded-full border-2 focus-visible:ring-0"
+                  style={{ borderColor: theme.border }}
+                />
+                <button type="submit" className="absolute left-3 top-1/2 -translate-y-1/2">
+                  <Search size={18} style={{ color: theme.primary }} />
+                </button>
+              </form>
+            </div>
+          )}
 
           {/* Secondary nav row — desktop only */}
           <div className="hidden md:flex items-center gap-1 pb-3">

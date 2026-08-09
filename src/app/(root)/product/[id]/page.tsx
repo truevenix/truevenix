@@ -10,6 +10,7 @@ import {
   productMetaTitle,
   safeJsonLd,
 } from "@/lib/seo"
+import Navbar from "@/components/layout/Navbar"
 
 type Props = {
   params: Promise<{ id: string }>
@@ -299,6 +300,7 @@ export default async function ProductPage({ params }: Props) {
 
   return (
     <>
+    <Navbar title={product.name} showSearch={false} showCart={false} showDeliverTo={false} />
       <ProductStructuredData product={product} />
       <ProductDetailClient product={product} />
     </>

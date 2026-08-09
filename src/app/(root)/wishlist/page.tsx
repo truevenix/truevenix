@@ -1,4 +1,5 @@
 import { auth } from "@/auth"
+import Navbar from "@/components/layout/Navbar"
 import WishlistClient from "@/components/WishlistClient"
 import { redirect } from "next/navigation"
 
@@ -11,5 +12,9 @@ export default async function WishlistPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
 
-  return <WishlistClient />
+  return 
+  <>
+            <Navbar/>
+  <WishlistClient />
+  </>
 }

@@ -2,6 +2,7 @@ import { db } from "@/lib/db"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import { BRAND_CONFIG } from "@/components/Shopbybrand"
+import Navbar from "@/components/layout/Navbar"
 
 export const metadata = {
   title: "Shop by Brand | Truevenix Nigeria",
@@ -36,6 +37,8 @@ export default async function BrandsPage() {
   const brandsWithCount = await getBrandsWithCount()
 
   return (
+     <>
+    <Navbar/>
     <main className="min-h-screen bg-gray-50">
       {/* header */}
       <section
@@ -151,5 +154,6 @@ export default async function BrandsPage() {
         </div>
       </section>
     </main>
+    </>
   )
 }

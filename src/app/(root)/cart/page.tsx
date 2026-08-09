@@ -6,6 +6,7 @@ import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { formatPrice, useCart } from "@/context/cart-context"
 import { EmptyCartMockup } from "@/components/EmptyCartMockup"
+import Navbar from "@/components/layout/Navbar"
 
 const trustItems = [
   { icon: Truck, label: "Delivery support", sub: "Clear order updates" },
@@ -30,6 +31,8 @@ export default function CartPage() {
 
   if (items.length === 0) {
     return (
+      <>
+          <Navbar showSearch={false} />
       <main className="flex min-h-screen flex-col items-center bg-gray-50 px-4 pt-14 pb-10">
         <div className="flex max-w-sm flex-col items-center gap-5 text-center">
           <EmptyCartMockup className="h-64 w-56" />
@@ -47,6 +50,7 @@ export default function CartPage() {
           </Button>
         </div>
       </main>
+      </>
     )
   }
 

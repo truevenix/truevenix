@@ -17,6 +17,7 @@ import { db }          from "@/lib/db"
 import { type CardProduct }       from "@/components/products/ProductCard"
 import { type ProductCategoryId } from "@/providers/theme-provider"
 import ShopByCategory from "@/components/ShopByCategory"
+import Navbar from "@/components/layout/Navbar"
 
 
 export const revalidate = 60
@@ -285,6 +286,8 @@ async function ProductsSection() {
 
 export default function HomePage() {
   return (
+    <>
+      <Navbar/>
     <main className="min-h-screen bg-gray-50">
 
       {/* ① HomeTabs first — contains hero Swiper + category tabs + products */}
@@ -296,5 +299,6 @@ export default function HomePage() {
       <TrustStrip />
       <ShopByCategory />
     </main>
+    </>
   )
 }

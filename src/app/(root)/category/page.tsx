@@ -3,6 +3,7 @@ import { db } from "@/lib/db"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import CategoryIcon from "@/components/categories/CategoryIcon"
+import Navbar from "@/components/layout/Navbar"
 
 export const metadata = {
   title: "Shop by Category | Truevenix Nigeria",
@@ -51,6 +52,8 @@ export default async function CategoryPage() {
   const divisions = Object.keys(grouped).filter((k) => grouped[k].length > 0)
 
   return (
+    <>
+        <Navbar/>
     <main className="min-h-screen bg-gray-50">
       {/* header */}
       <section
@@ -198,5 +201,6 @@ export default async function CategoryPage() {
         </div>
       </section>
     </main>
+    </>
   )
 }

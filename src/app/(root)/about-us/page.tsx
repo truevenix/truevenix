@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/providers/theme-provider";
 import Image from "next/image";
+import Navbar from "@/components/layout/Navbar";
 
 // ── Motion ──────────────────────────────────────────────────────────────
 const fadeUp: Variants = {
@@ -97,6 +98,9 @@ export default function AboutPage() {
   const { theme } = useTheme();
 
   return (
+    <>
+    <Navbar showSearch={false} />
+    
     <main className="bg-white overflow-x-hidden">
 
       {/* ── HERO — looping video of recent work ─────────────────────── */}
@@ -418,5 +422,6 @@ export default function AboutPage() {
       </section>
 
     </main>
+    </>
   );
 }

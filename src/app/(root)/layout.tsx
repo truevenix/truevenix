@@ -33,7 +33,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
    const subcategories = await getSubcategories()
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-     <Navbar subcategories={subcategories} />
+     
       <BottomNavbar />
       
         <main className="flex-1">

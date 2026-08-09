@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react"
 import { BRAND_CONFIG } from "@/components/Shopbybrand"
 import { toCardProduct } from "@/lib/products"
 import BrandProductsClient from "@/components/BrandProductsClient"
+import Navbar from "@/components/layout/Navbar"
 
 type Props = { params: Promise<{ brand: string }> }
 
@@ -61,6 +62,8 @@ export default async function BrandPage({ params }: Props) {
   const cardProducts = products.map(toCardProduct)
 
   return (
+    <>
+        <Navbar/>
     <main className="min-h-screen bg-gray-50">
       {/* ── header ── */}
       {banner ? (
@@ -249,5 +252,6 @@ export default async function BrandPage({ params }: Props) {
         </div>
       </section>
     </main>
+    </>
   )
 }

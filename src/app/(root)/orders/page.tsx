@@ -12,6 +12,7 @@ import { EmptyOrderMockup } from "@/components/EmptyOrderMockup"
 import { useSearchParams } from "next/navigation"
 import {ArrowLeft,ArrowRight,Calendar,CreditCard,LogIn,Mail,Package,RefreshCw,Search,Truck,User, Zap,} from "lucide-react"
 import { useCurrentUserWithStatus } from "@/hooks/use-current-user"
+import Navbar from "@/components/layout/Navbar"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface OrderItem {
@@ -470,7 +471,10 @@ export default function OrdersPage() {
         </main>
       }
     >
+      <>
+                <Navbar showSearch={false} />
       <OrdersContent />
+      </>
     </Suspense>
   )
 }

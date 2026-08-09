@@ -17,6 +17,7 @@ import {
   installmentDurationLabel,
   INSTALLMENT_TERMS_URL,
 } from "@/lib/installments"
+import Navbar from "@/components/layout/Navbar"
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -770,6 +771,8 @@ function CheckoutPageInner() {
   // ── Empty cart ─────────────────────────────────────────────────────────────
   if (items.length === 0) {
     return (
+      <>
+          <Navbar showSearch={false} />
       <main
         className="flex min-h-screen items-center justify-center px-4"
         style={{ backgroundColor: "color-mix(in srgb, var(--theme-primary) 4%, white)" }}
@@ -796,11 +799,14 @@ function CheckoutPageInner() {
           </Link>
         </motion.div>
       </main>
+      </>
     )
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
+    <>
+          <Navbar showSearch={false} />
     <main
       className="min-h-screen px-4 py-8 md:px-6 md:py-12"
       style={{ backgroundColor: "color-mix(in srgb, var(--theme-primary) 4%, white)" }}
@@ -1467,11 +1473,13 @@ function CheckoutPageInner() {
         </form>
       </div>
     </main>
+</>
   )
 }
 export default function CheckoutPage() {
   return (
     <Suspense fallback={null}>
+
       <CheckoutPageInner />
     </Suspense>
   )
