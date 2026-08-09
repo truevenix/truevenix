@@ -1,10 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowLeft, ArrowRight, MapPin, Minus, Plus, RotateCcw, Shield, ShoppingBag, ShoppingCart, Trash2, Truck } from "lucide-react"
+import { ArrowLeft, ArrowRight, MapPin, Minus, Plus, RotateCcw, Shield, ShoppingBag, Trash2, Truck } from "lucide-react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { formatPrice, useCart } from "@/context/cart-context"
+import { EmptyCartMockup } from "@/components/EmptyCartMockup"
 
 const trustItems = [
   { icon: Truck, label: "Delivery support", sub: "Clear order updates" },
@@ -31,9 +32,7 @@ export default function CartPage() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-10">
         <div className="flex max-w-sm flex-col items-center gap-5 text-center">
-          <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-[var(--theme-primary-light)]">
-            <ShoppingCart size={40} className="text-[var(--theme-primary)]" />
-          </div>
+          <EmptyCartMockup className="h-64 w-56" />
           <div>
             <h1 className="text-2xl font-black text-gray-900">Your cart is empty</h1>
             <p className="mt-2 text-sm text-gray-500">
