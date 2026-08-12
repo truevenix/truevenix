@@ -333,6 +333,7 @@ app.get("/products", async (c) => {
   const category = c.req.query("category")?.trim().toUpperCase()
   const brand = c.req.query("brand")?.trim()
   const badge = c.req.query("badge")?.trim()
+  const featured = c.req.query("featured")
   const inStock = c.req.query("inStock")
   const minPrice = Number(c.req.query("minPrice"))
   const maxPrice = Number(c.req.query("maxPrice"))
@@ -351,6 +352,7 @@ app.get("/products", async (c) => {
     ...(category && category !== "ALL" ? { category: category as never } : {}),
     ...(brand ? { brand: { equals: brand, mode: "insensitive" as const } } : {}),
     ...(badge ? { badge: { equals: badge, mode: "insensitive" as const } } : {}),
+    ...(featured === "true" ? { isFeatured: true } : {}),
     ...(inStock === "true" ? { inStock: true } : {}),
     ...(inStock === "false" ? { inStock: false } : {}),
     ...(Number.isFinite(minPrice) || Number.isFinite(maxPrice)
