@@ -184,7 +184,7 @@ export function InstallmentMockup({
               <div className="h-[0.8cqw] w-[8cqw] rounded-full bg-[#E9EBF0]" />
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col px-[3.2cqw] pb-[2.4cqw] pt-[1.2cqw]">
+            <div className="flex min-h-0 flex-1 flex-col px-[3.2cqw] pb-[0.8cqw] pt-[1.2cqw]">
               {/* app header */}
               <div className="flex shrink-0 items-center gap-[1.2cqw]">
                 <TruevenixLogo className="size-[7cqw]" />
@@ -335,15 +335,7 @@ export function InstallmentMockup({
                     {amountOnly(product.price)}
                   </p>
                 </div>
-                <div className="relative ml-auto overflow-hidden rounded-full bg-[#191F27] px-[3cqw] py-[1.5cqw]">
-                  <span className="text-[1.9cqw] font-bold text-white">
-                    Confirm plan
-                  </span>
-                  <span
-                    className="pointer-events-none absolute inset-y-0 left-0 w-[30%] bg-white/25 blur-[0.4cqw]"
-                    style={{ animation: "tv-sheen 3.6s ease-in-out infinite" }}
-                  />
-                </div>
+                
               </div>
             </div>
           </div>

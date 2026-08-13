@@ -1,4 +1,3 @@
-//Installment-section
 "use client";
 
 import { useState } from "react";
@@ -6,7 +5,6 @@ import {
   amountOnly,
   splitInstallments,
   themeVars,
-  TV_PRIMARY,
 } from "@/lib/installment";
 import {
   DEFAULT_PRODUCT,
@@ -15,7 +13,8 @@ import {
   type MockProduct,
   type PlanCount,
 } from "./Installment-mockup";
-import Image from "next/image";
+import { TruevenixLogo } from "./theme-logo";
+import { useTheme } from "@/providers/theme-provider";
 
 /* ------------------------------------------------------------------ *
  * Icons
@@ -110,17 +109,16 @@ const TRUST = [
 ];
 
 export function InstallmentSection({
-  primary = TV_PRIMARY,
   product = DEFAULT_PRODUCT,
 }: {
-  primary?: string;
   product?: MockProduct;
 }) {
   const [plan, setPlan] = useState<PlanCount>(4);
+  const { theme } = useTheme();
 
   return (
     <section
-      style={themeVars(primary)}
+      style={themeVars(theme.primary)}
       className="relative isolate overflow-hidden bg-[#FFFCFA] py-16 sm:py-20 lg:py-28"
     >
       {/* ambience */}
@@ -151,15 +149,7 @@ export function InstallmentSection({
             style={{ animationDelay: "120ms" }}
           >
             <span className="inline-flex items-center gap-2 rounded-full border border-[var(--tv-primary-20)] bg-[var(--tv-primary-08)] py-1.5 pl-2 pr-3.5 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-[var(--tv-primary)]">
-              <span className="grid size-5 place-items-center rounded-full bg-[var(--tv-primary)] text-white">
-                <Image
-                  src="/favicon-16x16.png"  
-                   width={24}
-                  height={24}
-                  alt="Truevenix logo"
-                  className="size-3"
-                />
-              </span>
+              <TruevenixLogo className="size-5" />
               Instalment payments
             </span>
 
