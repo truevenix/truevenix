@@ -19,7 +19,6 @@ import { type ProductCategoryId } from "@/providers/theme-provider"
 import ShopByCategory from "@/components/ShopByCategory"
 import Navbar from "@/components/layout/Navbar"
 
-
 export const revalidate = 60
 
 function StoreStructuredData() {
@@ -295,7 +294,6 @@ export default function HomePage() {
       <Suspense fallback={<HomeTabsSkeleton />}>
         <ProductsSection />
       </Suspense>
-
       <TrustStrip />
       <ShopByCategory />
     </main>

@@ -1,4 +1,3 @@
-// src/components/layout/Navbar.tsx
 "use client"
 
 import { useState, useRef, useEffect } from "react"
@@ -10,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useTheme } from "@/providers/theme-provider"
 import { useCart } from "@/context/cart-context"
-import Image from "next/image"
+import { TruevenixLogo } from "@/components/theme-logo"
 import { AddressModal, type AddressForm } from "@/components/AddressModal"
 import { useDeliveryAddress } from "@/context/DeliveryAddressContext"
 import { useSession } from "next-auth/react"
@@ -60,7 +59,7 @@ function UserAvatar({ name, image, size = 32 }: { name?: string | null; image?: 
 
   if (image) {
     return (
-      <Image
+      <img
         src={image}
         alt={name ?? "User"}
         width={size}
@@ -104,7 +103,7 @@ export default function Navbar({
   const [megaOpen, setMegaOpen] = useState(false)
   const [addressModalOpen, setAddressModalOpen] = useState(false)
   const tickerRef = useRef<HTMLDivElement>(null)
-const [trackWidth, setTrackWidth] = useState(0)
+  const [trackWidth, setTrackWidth] = useState(0)
 
   // Mobile hide-on-scroll-down / show-on-scroll-up. Desktop header stays put.
   const [headerHidden, setHeaderHidden] = useState(false)
@@ -120,8 +119,6 @@ const [trackWidth, setTrackWidth] = useState(0)
         lastScrollY.current = window.scrollY
         return
       }
-
-    
 
       const currentScrollY = window.scrollY
       const scrolledDown = currentScrollY > lastScrollY.current
@@ -140,12 +137,12 @@ const [trackWidth, setTrackWidth] = useState(0)
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
-    useEffect(() => {
-  if (tickerRef.current) {
-    // content is duplicated x2, so one "track" is half the scrollWidth
-    setTrackWidth(tickerRef.current.scrollWidth / 2)
-  }
-}, [])
+  useEffect(() => {
+    if (tickerRef.current) {
+      // content is duplicated x2, so one "track" is half the scrollWidth
+      setTrackWidth(tickerRef.current.scrollWidth / 2)
+    }
+  }, [])
 
   const megaRef = useRef<HTMLDivElement>(null)
   const closeTimer = useRef<NodeJS.Timeout | null>(null)
@@ -177,10 +174,10 @@ const [trackWidth, setTrackWidth] = useState(0)
     return () => document.removeEventListener("mousedown", handleClick)
   }, [])
 
-function truncateText(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text
-  return text.slice(0, maxLength) + "..."
-}
+  function truncateText(text: string, maxLength: number): string {
+    if (text.length <= maxLength) return text
+    return text.slice(0, maxLength) + "..."
+  }
 
   async function handleSaveAddress(data: AddressForm) {
     await saveAddress(data, savedAddress?.id)
@@ -205,32 +202,31 @@ function truncateText(text: string, maxLength: number): string {
   return (
     <>
       {/* Top bar */}
-<div
-  className="flex py-2 text-xs overflow-hidden"
-  style={{ background: theme.primary, color: "white" }}
->
-  <div className="container mx-auto px-4 flex justify-between items-center">
-
-    {/* Moving delivery / info ticker */}
-    <div className="relative flex-1 overflow-hidden">
-      <motion.div
-        ref={tickerRef}
-        className="flex items-center whitespace-nowrap"
-        animate={trackWidth ? { x: [0, -trackWidth] } : {}}
-        transition={{ duration: trackWidth / 60, repeat: Infinity, ease: "linear" }}
+      <div
+        className="flex py-2 text-xs overflow-hidden"
+        style={{ background: theme.primary, color: "white" }}
       >
-        {Array.from({ length: 2 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-10 shrink-0 pr-10">
-            <span className="font-bold">Free Delivery to any location in Abuja</span>
-            <Link href="/orders" className="hover:underline">Track Order</Link>
-            <Link href="/contact-us" className="hover:underline">Help Center</Link>
-            <span>Call: +234 7016341256</span>
+        <div className="container mx-auto px-4 flex justify-between items-center">
+          {/* Moving delivery / info ticker */}
+          <div className="relative flex-1 overflow-hidden">
+            <motion.div
+              ref={tickerRef}
+              className="flex items-center whitespace-nowrap"
+              animate={trackWidth ? { x: [0, -trackWidth] } : {}}
+              transition={{ duration: trackWidth / 60, repeat: Infinity, ease: "linear" }}
+            >
+              {Array.from({ length: 2 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-10 shrink-0 pr-10">
+                  <span className="font-bold">Free Delivery to any location in Abuja</span>
+                  <Link href="/orders" className="hover:underline">Track Order</Link>
+                  <Link href="/contact-us" className="hover:underline">Help Center</Link>
+                  <span>Call: +234 7016341256</span>
+                </div>
+              ))}
+            </motion.div>
           </div>
-        ))}
-      </motion.div>
-    </div>
-  </div>
-</div>
+        </div>
+      </div>
 
       {/* Main header */}
       <motion.header
@@ -241,46 +237,38 @@ function truncateText(text: string, maxLength: number): string {
       >
         <div className="container mx-auto px-3">
           <div className="flex items-center justify-between h-16 md:h-20">
-
             {/* Logo + Deliver To */}
             <div className="flex items-center gap-1 md:gap-2 -ml-3 md:-ml-3 min-w-0">
               <Link href="/" className="flex items-center gap-1 md:gap-2 shrink-0">
-                <Image
-                  src={theme.logo}
-                  alt="Truevenix logo"
-                  width={367}
-                  height={532}
-                  className="h-12 w-12 md:h-14 md:w-14 object-contain"
-                  unoptimized
-                />
+                <TruevenixLogo className="h-12 w-12 md:h-14 md:w-14" />
                 <span
                   className={`${brandFont.className} text-2xl md:text-3xl font-bold tracking-tight whitespace-nowrap`}
                   style={{ color: theme.primary }}
                 >
-                 {title ? truncateText(title, 17) : "TRUEVENIX"}
+                  {title ? truncateText(title, 17) : "TRUEVENIX"}
                 </span>
               </Link>
 
-             {/* Deliver To - hidden on mobile if showDeliverTo is false */}
-             <button
-  onClick={() => setAddressModalOpen(true)}
-  className={`items-center gap-1.5 pl-2 pr-3 py-2 rounded-full hover:bg-gray-100 transition-colors text-left ${
-    showDeliverTo ? 'flex' : 'hidden md:flex'
-  }`}
->
-  <div className="leading-tight min-w-0">
-    <div className="flex items-center gap-1 whitespace-nowrap">
-      <span className="text-xs md:text-base font-bold text-gray-500">
-        Deliver to
-      </span>
-      <ChevronDown size={14} className="text-gray-500 shrink-0" />
-    </div>
+              {/* Deliver To - hidden on mobile if showDeliverTo is false */}
+              <button
+                onClick={() => setAddressModalOpen(true)}
+                className={`items-center gap-1.5 pl-2 pr-3 py-2 rounded-full hover:bg-gray-100 transition-colors text-left ${
+                  showDeliverTo ? 'flex' : 'hidden md:flex'
+                }`}
+              >
+                <div className="leading-tight min-w-0">
+                  <div className="flex items-center gap-1 whitespace-nowrap">
+                    <span className="text-xs md:text-base font-bold text-gray-500">
+                      Deliver to
+                    </span>
+                    <ChevronDown size={14} className="text-gray-500 shrink-0" />
+                  </div>
 
-    <p className="text-xs md:text-sm font-semibold text-gray-800 max-w-[120px] truncate">
-      {truncateText(deliverToLabel, 12)}
-    </p>
-  </div>
-</button>
+                  <p className="text-xs md:text-sm font-semibold text-gray-800 max-w-[120px] truncate">
+                    {truncateText(deliverToLabel, 12)}
+                  </p>
+                </div>
+              </button>
             </div>
 
             {/* Search — desktop */}
@@ -407,26 +395,26 @@ function truncateText(text: string, maxLength: number): string {
 
             <div className="w-px h-5 bg-gray-200 ml-auto mr-1" />
 
-          {NAV_LINKS.map((link) => {
-  const isActive =
-    link.href === "/"
-      ? pathname === "/"
-      : pathname.startsWith(link.href)
+            {NAV_LINKS.map((link) => {
+              const isActive =
+                link.href === "/"
+                  ? pathname === "/"
+                  : pathname.startsWith(link.href)
 
-  return (
-    <Link
-      key={link.href}
-      href={link.href}
-      className="px-4 py-2 rounded-full text-sm font-semibold transition-all"
-      style={{
-        background: isActive ? theme.primary : "transparent",
-        color: isActive ? "#fff" : "#4B5563",
-      }}
-    >
-      {link.label}
-    </Link>
-  )
-})}
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="px-4 py-2 rounded-full text-sm font-semibold transition-all"
+                  style={{
+                    background: isActive ? theme.primary : "transparent",
+                    color: isActive ? "#fff" : "#4B5563",
+                  }}
+                >
+                  {link.label}
+                </Link>
+              )
+            })}
           </div>
         </div>
 
@@ -516,60 +504,60 @@ function truncateText(text: string, maxLength: number): string {
             >
               {/* Drawer header */}
               <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-  {user ? (
-    <Link
-      href="/profile"
-      onClick={() => setMobileMenuOpen(false)}
-      className="flex items-center gap-3"
-    >
-      <div className="mr-1">
-        <UserAvatar name={user.name} image={user.image} size={40} />
-      </div>
+                {user ? (
+                  <Link
+                    href="/profile"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-3"
+                  >
+                    <div className="mr-1">
+                      <UserAvatar name={user.name} image={user.image} size={40} />
+                    </div>
 
-      <div className="leading-tight flex flex-col justify-center">
-        <p className="text-xs text-gray-400">Signed in as</p>
-        <p className="text-sm font-black text-gray-900 truncate max-w-[160px]">
-          {user.name ?? user.email}
-        </p>
-      </div>
-    </Link>
-  ) : (
-    <p className="font-black text-lg text-gray-900">Menu</p>
-  )}
+                    <div className="leading-tight flex flex-col justify-center">
+                      <p className="text-xs text-gray-400">Signed in as</p>
+                      <p className="text-sm font-black text-gray-900 truncate max-w-[160px]">
+                        {user.name ?? user.email}
+                      </p>
+                    </div>
+                  </Link>
+                ) : (
+                  <p className="font-black text-lg text-gray-900">Menu</p>
+                )}
 
-  <Button
-    variant="ghost"
-    size="icon"
-    onClick={() => setMobileMenuOpen(false)}
-  >
-    <X size={20} />
-  </Button>
-</div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <X size={20} />
+                </Button>
+              </div>
 
               {/* Nav links */}
-             <div className="p-4 space-y-2">
-  {NAV_LINKS.map((link) => {
-    const isActive =
-      link.href === "/"
-        ? pathname === "/"
-        : pathname.startsWith(link.href)
+              <div className="p-4 space-y-2">
+                {NAV_LINKS.map((link) => {
+                  const isActive =
+                    link.href === "/"
+                      ? pathname === "/"
+                      : pathname.startsWith(link.href)
 
-    return (
-      <Link
-        key={link.href}
-        href={link.href}
-        onClick={() => setMobileMenuOpen(false)}
-        className="block px-4 py-3 rounded-xl font-semibold transition-all"
-        style={{
-          background: isActive ? theme.primary : "transparent",
-          color: isActive ? "#fff" : "#374151",
-        }}
-      >
-        {link.label}
-      </Link>
-    )
-  })}
-</div>
+                  return (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="block px-4 py-3 rounded-xl font-semibold transition-all"
+                      style={{
+                        background: isActive ? theme.primary : "transparent",
+                        color: isActive ? "#fff" : "#374151",
+                      }}
+                    >
+                      {link.label}
+                    </Link>
+                  )
+                })}
+              </div>
 
               {/* Subcategories */}
               {parentCategories.length > 0 && (

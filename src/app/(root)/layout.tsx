@@ -4,6 +4,7 @@ import BottomNavbar from "@/components/layout/BottomNav"
 import Footer from "@/components/layout/Footer"
 import Navbar from "@/components/layout/Navbar"
 import { db } from "@/lib/db"
+import { InstallmentSection } from "@/components/installment-section"
 
 async function getSubcategories(): Promise<Record<string, string[]>> {
   try {
@@ -39,6 +40,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <main className="flex-1">
         {children}
       </main>
+      <InstallmentSection />
       <Footer />
 
     </div>
