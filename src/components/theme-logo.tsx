@@ -1,5 +1,9 @@
 // components/truevenix-logo.tsx
-export function TruevenixLogo({ className = "" }: { className?: string }) {
+export function TruevenixLogo({
+   className = "w-16 h-16" 
+}: { 
+  className?: string 
+}) {
   return (
     <svg
       viewBox="25 30 40 40"

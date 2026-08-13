@@ -148,8 +148,8 @@ export function InstallmentSection({
             className="tv-anim-rise"
             style={{ animationDelay: "120ms" }}
           >
-            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--tv-primary-20)] bg-[var(--tv-primary-08)] py-1.5 pl-2 pr-3.5 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-[var(--tv-primary)]">
-              <TruevenixLogo className="size-5" />
+            <span className="inline-flex items-center  rounded-full border border-[var(--tv-primary-20)] bg-[var(--tv-primary-08)]  pl-2 pr-3.5 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-[var(--tv-primary)]">
+             <span className="mt-1"><TruevenixLogo className="size-10" /></span>  
               Instalment payments
             </span>
 

@@ -8,7 +8,6 @@ import {
 import { useTheme } from "@/providers/theme-provider"
 import Image from "next/image"
 import { Space_Grotesk } from "next/font/google"
-import { TruevenixLogo } from "../theme-logo"
 
 const brandFont = Space_Grotesk({
   subsets: ["latin"],
@@ -78,7 +77,7 @@ export default function Footer() {
         <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr]">
           <div>
             <Link href="/" className="inline-flex items-center gap-2.5">
-              <TruevenixLogo />
+              <Image src={theme.logo} alt="truevenix logo" width={24} height={24} className="h-10 w-10" />
               <span
                   className={`${brandFont.className} text-2xl md:text-3xl font-bold tracking-tight whitespace-nowrap`}
                   style={{ color: theme.primary }}
