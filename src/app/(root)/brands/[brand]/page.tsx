@@ -1,3 +1,4 @@
+//src/app/%28root%29/brands/%5Bbrand%5D/page.tsx
 import { db } from "@/lib/db"
 import { notFound } from "next/navigation"
 import Link from "next/link"
