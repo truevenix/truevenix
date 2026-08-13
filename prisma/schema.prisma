@@ -125,11 +125,11 @@ model Product {
   subCategory   String?
   inStock       Boolean         @default(true)
   stockCount    Int             @default(0)
-  badge         String?
+  badgeeatures   Json?
+  warr         String?
   isFeatured    Boolean         @default(false)
   specifications Json?
-  keyFeatures   Json?
-  warranty      String?
+  keyFanty      String?
   images        Image[]
   reviews       Review[]
   orderItems    OrderItem[]

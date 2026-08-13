@@ -89,12 +89,6 @@ export type ProductDetail = {
 }
 
 // ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-
-
-// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -152,12 +146,12 @@ export default function ProductDetailClient({ product }: { product: ProductDetai
   const [buyingWithInstallments, setBuyingWithInstallments] = useState(false)
   const [checkingOut, setCheckingOut] = useState(false)
   const defaultSize = product.sizeOptions?.find(s => s.isDefault)
-  ?? product.sizeOptions?.[0]
-  ?? null
-const [selectedSize, setSelectedSize] = useState<SizeOption | null>(defaultSize)
+    ?? product.sizeOptions?.[0]
+    ?? null
+  const [selectedSize, setSelectedSize] = useState<SizeOption | null>(defaultSize)
 
-// Price shown — size option price wins when one is selected
-const displayPrice = selectedSize?.price ?? product.price
+  // Price shown — size option price wins when one is selected
+  const displayPrice = selectedSize?.price ?? product.price
   const relatedQuery = useRelatedProducts(product.id, product.category)
   const related = (relatedQuery.data?.products ?? []).map(toCardProduct)
   const discount = product.originalPrice
@@ -168,99 +162,99 @@ const displayPrice = selectedSize?.price ?? product.price
   const keyFeatures = parseKeyFeatures(product.keyFeatures)
   const specs = renderSpecifications(product.specifications)
 
-// derive the cart key for the currently selected state
-const cartKey = buildCartKey(product.id, selectedSize?.name ?? null)
-const alreadyInCart = isInCart(cartKey)
+  // derive the cart key for the currently selected state
+  const cartKey = buildCartKey(product.id, selectedSize?.name ?? null)
+  const alreadyInCart = isInCart(cartKey)
 
-const handleAddToCart = () => {
-  if (!product.inStock) return
-  const price    = selectedSize?.price ?? product.price
-  const itemName = selectedSize
-  ? `${product.name} (${selectedSize.label} — ${selectedSize.name})`
-  : product.name
+  const handleAddToCart = () => {
+    if (!product.inStock) return
+    const price    = selectedSize?.price ?? product.price
+    const itemName = selectedSize
+      ? `${product.name} (${selectedSize.label} — ${selectedSize.name})`
+      : product.name
 
-  Array.from({ length: quantity }).forEach(() => {
-    addToCart({
-      cartKey,                                  // ← composite key
-      id:             product.id,               // ← raw product ID for order payload
-      name:           itemName,
-      description:    product.description,
-      category,
-      brand:          product.brand ?? "",
-      price,
-      imageColor:     selectedImage?.color     ?? "Default",
-      imageColorCode: selectedImage?.colorCode ?? "#475569",
-      imageUrl:       selectedImage?.image     ?? "",
+    Array.from({ length: quantity }).forEach(() => {
+      addToCart({
+        cartKey,                                  // ← composite key
+        id:             product.id,               // ← raw product ID for order payload
+        name:           itemName,
+        description:    product.description,
+        category,
+        brand:          product.brand ?? "",
+        price,
+        imageColor:     selectedImage?.color     ?? "Default",
+        imageColorCode: selectedImage?.colorCode ?? "#475569",
+        imageUrl:       selectedImage?.image     ?? "",
+      })
     })
-  })
 
-  toast.success(`${itemName} added to cart`, {
-    description: `${quantity} item${quantity === 1 ? "" : "s"} — ${formatPrice(price * quantity)}`,
-  })
-}
-
-// "Buy with installments" adds the current selection to the cart (same as
-// Add to cart, silently — no toast, since we're navigating away immediately)
-// then deep-links into checkout with the installment method + count
-// pre-selected. If the shopper isn't signed in, we still go — checkout's
-// installment section already shows a "sign in to continue" prompt inline.
-const handleBuyWithInstallments = () => {
-  if (!product.inStock || buyingWithInstallments) return
-  setBuyingWithInstallments(true)
-
-  const price = selectedSize?.price ?? product.price
-  const itemName = selectedSize
-    ? `${product.name} (${selectedSize.label} — ${selectedSize.name})`
-    : product.name
-
-  Array.from({ length: quantity }).forEach(() => {
-    addToCart({
-      cartKey,
-      id: product.id,
-      name: itemName,
-      description: product.description,
-      category,
-      brand: product.brand ?? "",
-      price,
-      imageColor: selectedImage?.color ?? "Default",
-      imageColorCode: selectedImage?.colorCode ?? "#475569",
-      imageUrl: selectedImage?.image ?? "",
+    toast.success(`${itemName} added to cart`, {
+      description: `${quantity} item${quantity === 1 ? "" : "s"} — ${formatPrice(price * quantity)}`,
     })
-  })
+  }
 
-  router.push(`/checkout?method=installment&count=${installmentCount}`)
-}
+  // "Buy with installments" adds the current selection to the cart (same as
+  // Add to cart, silently — no toast, since we're navigating away immediately)
+  // then deep-links into checkout with the installment method + count
+  // pre-selected. If the shopper isn't signed in, we still go — checkout's
+  // installment section already shows a "sign in to continue" prompt inline.
+  const handleBuyWithInstallments = () => {
+    if (!product.inStock || buyingWithInstallments) return
+    setBuyingWithInstallments(true)
 
-// "Checkout" button — same add-to-cart-then-navigate pattern as
-// "Buy with installments" above. Without this, the button used to link
-// straight to /checkout without adding the product, so it landed on
-// whatever was already in the cart (often empty) instead of this item.
-const handleCheckoutNow = () => {
-  if (!product.inStock || checkingOut) return
-  setCheckingOut(true)
+    const price = selectedSize?.price ?? product.price
+    const itemName = selectedSize
+      ? `${product.name} (${selectedSize.label} — ${selectedSize.name})`
+      : product.name
 
-  const price = selectedSize?.price ?? product.price
-  const itemName = selectedSize
-    ? `${product.name} (${selectedSize.label} — ${selectedSize.name})`
-    : product.name
-
-  Array.from({ length: quantity }).forEach(() => {
-    addToCart({
-      cartKey,
-      id: product.id,
-      name: itemName,
-      description: product.description,
-      category,
-      brand: product.brand ?? "",
-      price,
-      imageColor: selectedImage?.color ?? "Default",
-      imageColorCode: selectedImage?.colorCode ?? "#475569",
-      imageUrl: selectedImage?.image ?? "",
+    Array.from({ length: quantity }).forEach(() => {
+      addToCart({
+        cartKey,
+        id: product.id,
+        name: itemName,
+        description: product.description,
+        category,
+        brand: product.brand ?? "",
+        price,
+        imageColor: selectedImage?.color ?? "Default",
+        imageColorCode: selectedImage?.colorCode ?? "#475569",
+        imageUrl: selectedImage?.image ?? "",
+      })
     })
-  })
 
-  router.push("/checkout")
-}
+    router.push(`/checkout?method=installment&count=${installmentCount}`)
+  }
+
+  // "Checkout" button — same add-to-cart-then-navigate pattern as
+  // "Buy with installments" above. Without this, the button used to link
+  // straight to /checkout without adding the product, so it landed on
+  // whatever was already in the cart (often empty) instead of this item.
+  const handleCheckoutNow = () => {
+    if (!product.inStock || checkingOut) return
+    setCheckingOut(true)
+
+    const price = selectedSize?.price ?? product.price
+    const itemName = selectedSize
+      ? `${product.name} (${selectedSize.label} — ${selectedSize.name})`
+      : product.name
+
+    Array.from({ length: quantity }).forEach(() => {
+      addToCart({
+        cartKey,
+        id: product.id,
+        name: itemName,
+        description: product.description,
+        category,
+        brand: product.brand ?? "",
+        price,
+        imageColor: selectedImage?.color ?? "Default",
+        imageColorCode: selectedImage?.colorCode ?? "#475569",
+        imageUrl: selectedImage?.image ?? "",
+      })
+    })
+
+    router.push("/checkout")
+  }
 
   return (
     <main className="min-h-screen bg-gray-50 pb-20 md:pb-0">
@@ -297,12 +291,13 @@ const handleCheckoutNow = () => {
             className="relative aspect-square overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
           >
             {selectedImage?.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
               <Image
                 src={selectedImage.image}
                 alt={product.name}
-                className="h-full w-full object-contain p-6"
+                className="object-contain p-6"
                 fill
+                sizes="(max-width: 768px) 100vw, 50vw"
+                priority
               />
             ) : (
               <div className="flex h-full items-center justify-center text-gray-300">No image</div>
@@ -330,19 +325,19 @@ const handleCheckoutNow = () => {
                 <button
                   key={image.id}
                   onClick={() => setSelectedImage(image)}
-                  className="aspect-square overflow-hidden rounded-xl border-2 bg-white"
+                  className="relative aspect-square overflow-hidden rounded-xl border-2 bg-white"
                   style={{
                     borderColor:
                       selectedImage?.id === image.id ? "var(--theme-primary)" : "#e5e7eb",
                   }}
                   title={image.color}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <Image
                     src={image.image}
                     alt={image.color}
-                    className="h-full w-full object-contain p-2"
+                    className="object-contain p-2"
                     fill
+                    sizes="80px"
                   />
                 </button>
               ))}
@@ -353,7 +348,6 @@ const handleCheckoutNow = () => {
         {/* Purchase panel */}
         <div className="space-y-5">
           <div>
-          
             <h1 className="mt-2 text-2xl font-black leading-tight text-gray-900 ">
               {product.name}
             </h1>
@@ -437,43 +431,44 @@ const handleCheckoutNow = () => {
               </div>
             </div>
           )}
-              {/* Size / Variant Options */}
-{/* Size / Variant Options */}
-{product.sizeOptions && product.sizeOptions.length > 0 && (
-  <div>
-    <p className="mb-2 text-sm font-black text-gray-700">
-      {product.sizeOptions[0]?.label.replace(/[A-Z0-9]+\d*/g, "").trim() || "Variant"}:{" "}
-      <span className="font-semibold text-gray-500">
-        {selectedSize ? `${selectedSize.label} — ${selectedSize.name}` : "None selected"}
-      </span>
-    </p>
-    <div className="flex flex-wrap gap-2">
-      {product.sizeOptions.map((option) => {
-        const isSelected = selectedSize?.id === option.id
-        return (
-          <button
-            key={option.id}
-            onClick={() => setSelectedSize(option)}
-            className={[
-              "rounded-xl border-2 px-4 py-2 text-sm font-bold transition-all text-left",
-              isSelected
-                ? "border-[var(--theme-primary)] bg-[var(--theme-primary)] text-white shadow-sm"
-                : "border-gray-200 bg-white text-gray-700 hover:border-[var(--theme-primary)]/60",
-            ].join(" ")}
-          >
-            <span className="block text-[10px] font-black uppercase tracking-wider opacity-70">
-              {option.label}
-            </span>
-            <span className="block">{option.name}</span>
-            <span className={["text-xs font-semibold", isSelected ? "text-white/80" : "text-gray-400"].join(" ")}>
-              {formatPrice(option.price)}
-            </span>
-          </button>
-        )
-      })}
-    </div>
-  </div>
-)}
+
+          {/* Size / Variant Options */}
+          {product.sizeOptions && product.sizeOptions.length > 0 && (
+            <div>
+              <p className="mb-2 text-sm font-black text-gray-700">
+                {product.sizeOptions[0]?.label.replace(/[A-Z0-9]+\d*/g, "").trim() || "Variant"}:{" "}
+                <span className="font-semibold text-gray-500">
+                  {selectedSize ? `${selectedSize.label} — ${selectedSize.name}` : "None selected"}
+                </span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {product.sizeOptions.map((option) => {
+                  const isSelected = selectedSize?.id === option.id
+                  return (
+                    <button
+                      key={option.id}
+                      onClick={() => setSelectedSize(option)}
+                      className={[
+                        "rounded-xl border-2 px-4 py-2 text-sm font-bold transition-all text-left",
+                        isSelected
+                          ? "border-[var(--theme-primary)] bg-[var(--theme-primary)] text-white shadow-sm"
+                          : "border-gray-200 bg-white text-gray-700 hover:border-[var(--theme-primary)]/60",
+                      ].join(" ")}
+                    >
+                      <span className="block text-[10px] font-black uppercase tracking-wider opacity-70">
+                        {option.label}
+                      </span>
+                      <span className="block">{option.name}</span>
+                      <span className={["text-xs font-semibold", isSelected ? "text-white/80" : "text-gray-400"].join(" ")}>
+                        {formatPrice(option.price)}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Quantity */}
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center rounded-xl border border-gray-200 bg-white">
@@ -615,16 +610,13 @@ const handleCheckoutNow = () => {
         {/* Description */}
         <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6">
           <SectionHeading>About this product</SectionHeading>
-
-          {/* <p className="max-w-3xl text-sm leading-7 text-gray-600">{product.description}</p>
-        */}
-        <div className="max-w-3xl space-y-4">
-  {[product.description, product.descriptionP2, product.descriptionP3]
-    .filter(Boolean)
-    .map((para, i) => (
-      <p key={i} className="text-sm leading-7 text-gray-600">{para}</p>
-    ))}
-</div>
+          <div className="max-w-3xl space-y-4">
+            {[product.description, product.descriptionP2, product.descriptionP3]
+              .filter(Boolean)
+              .map((para, i) => (
+                <p key={i} className="text-sm leading-7 text-gray-600">{para}</p>
+              ))}
+          </div>
         </div>
 
         {/* Key features */}
@@ -655,126 +647,125 @@ const handleCheckoutNow = () => {
           </div>
         )}
 
+        {product.reviews.length > 0 && (
+          <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6">
+            <SectionHeading>
+              Customer reviews
+              {product.reviewCount > 0 && (
+                <span className="ml-2 text-sm font-semibold text-gray-400">
+                  ({product.reviewCount})
+                </span>
+              )}
+            </SectionHeading>
 
- {product.reviews.length > 0 && (
-   <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6">
-          <SectionHeading>
-            Customer reviews
-            {product.reviewCount > 0 && (
-              <span className="ml-2 text-sm font-semibold text-gray-400">
-                ({product.reviewCount})
-              </span>
-            )}
-          </SectionHeading>
-
-          {product.reviews.length > 0 ? (
-            <>
-              {/* Summary bar */}
-              <div className="mb-6 flex items-center gap-4 rounded-2xl bg-gray-50 p-4">
-                <div className="text-center">
-                  <p className="text-4xl font-black text-gray-900">
-                    {product.avgRating.toFixed(1)}
-                  </p>
-                  <div className="mt-1 flex justify-center gap-0.5">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Star
-                        key={star}
-                        size={13}
-                        className={
-                          star <= Math.round(product.avgRating)
-                            ? "fill-amber-400 text-amber-400"
-                            : "fill-gray-200 text-gray-200"
-                        }
-                      />
-                    ))}
-                  </div>
-                  <p className="mt-1 text-xs text-gray-400">
-                    {product.reviewCount} review{product.reviewCount !== 1 ? "s" : ""}
-                  </p>
-                </div>
-                <div className="h-16 w-px bg-gray-200" />
-                <div className="flex-1 space-y-1.5">
-                  {[5, 4, 3, 2, 1].map((star) => {
-                    const count = product.reviews.filter((r) => r.rating === star).length
-                    const pct = product.reviews.length
-                      ? Math.round((count / product.reviews.length) * 100)
-                      : 0
-                    return (
-                      <div key={star} className="flex items-center gap-2">
-                        <span className="w-3 text-right text-xs font-bold text-gray-400">
-                          {star}
-                        </span>
-                        <Star size={10} className="fill-amber-400 text-amber-400" />
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-200">
-                          <div
-                            className="h-full rounded-full bg-amber-400 transition-all"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <span className="w-7 text-xs text-gray-400">{pct}%</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                {product.reviews.map((review) => (
-                  <div
-                    key={review.id}
-                    className="rounded-2xl border border-gray-100 p-4"
-                  >
-                    <div className="mb-2 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {review.user.image ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={review.user.image}
-                            alt={review.user.name ?? "Customer"}
-                            className="h-8 w-8 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-xs font-black text-gray-400">
-                            {(review.user.name ?? "C").charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                        <p className="font-black text-gray-900">
-                          {review.user.name ?? "Customer"}
-                        </p>
-                      </div>
-                      <div className="flex gap-0.5">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
-                            key={star}
-                            size={12}
-                            className={
-                              star <= review.rating
-                                ? "fill-amber-400 text-amber-400"
-                                : "fill-gray-200 text-gray-200"
-                            }
-                          />
-                        ))}
-                      </div>
+            {product.reviews.length > 0 ? (
+              <>
+                {/* Summary bar */}
+                <div className="mb-6 flex items-center gap-4 rounded-2xl bg-gray-50 p-4">
+                  <div className="text-center">
+                    <p className="text-4xl font-black text-gray-900">
+                      {product.avgRating.toFixed(1)}
+                    </p>
+                    <div className="mt-1 flex justify-center gap-0.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          size={13}
+                          className={
+                            star <= Math.round(product.avgRating)
+                              ? "fill-amber-400 text-amber-400"
+                              : "fill-gray-200 text-gray-200"
+                          }
+                        />
+                      ))}
                     </div>
-                    <p className="text-sm text-gray-500">{review.comment}</p>
-                    <p className="mt-2 text-xs text-gray-300">
-                      {new Date(review.createdDate).toLocaleDateString("en-NG", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
+                    <p className="mt-1 text-xs text-gray-400">
+                      {product.reviewCount} review{product.reviewCount !== 1 ? "s" : ""}
                     </p>
                   </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <p className="text-sm text-gray-500">
-              No reviews yet — be the first to share your experience.
-            </p>
-          )}
-        </div>
-         )}
+                  <div className="h-16 w-px bg-gray-200" />
+                  <div className="flex-1 space-y-1.5">
+                    {[5, 4, 3, 2, 1].map((star) => {
+                      const count = product.reviews.filter((r) => r.rating === star).length
+                      const pct = product.reviews.length
+                        ? Math.round((count / product.reviews.length) * 100)
+                        : 0
+                      return (
+                        <div key={star} className="flex items-center gap-2">
+                          <span className="w-3 text-right text-xs font-bold text-gray-400">
+                            {star}
+                          </span>
+                          <Star size={10} className="fill-amber-400 text-amber-400" />
+                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-200">
+                            <div
+                              className="h-full rounded-full bg-amber-400 transition-all"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className="w-7 text-xs text-gray-400">{pct}%</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  {product.reviews.map((review) => (
+                    <div
+                      key={review.id}
+                      className="rounded-2xl border border-gray-100 p-4"
+                    >
+                      <div className="mb-2 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {review.user.image ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={review.user.image}
+                              alt={review.user.name ?? "Customer"}
+                              className="h-8 w-8 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-xs font-black text-gray-400">
+                              {(review.user.name ?? "C").charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <p className="font-black text-gray-900">
+                            {review.user.name ?? "Customer"}
+                          </p>
+                        </div>
+                        <div className="flex gap-0.5">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              size={12}
+                              className={
+                                star <= review.rating
+                                  ? "fill-amber-400 text-amber-400"
+                                  : "fill-gray-200 text-gray-200"
+                              }
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-500">{review.comment}</p>
+                      <p className="mt-2 text-xs text-gray-300">
+                        {new Date(review.createdDate).toLocaleDateString("en-NG", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-gray-500">
+                No reviews yet — be the first to share your experience.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Related products */}
         {related.length > 0 && (
