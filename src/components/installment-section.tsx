@@ -153,7 +153,7 @@ export function InstallmentSection({
             <span className="inline-flex items-center gap-2 rounded-full border border-[var(--tv-primary-20)] bg-[var(--tv-primary-08)] py-1.5 pl-2 pr-3.5 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-[var(--tv-primary)]">
               <span className="grid size-5 place-items-center rounded-full bg-[var(--tv-primary)] text-white">
                 <Image
-                  src="/favicon.svg"  
+                  src="/favicon-16x16.png"  
                    width={24}
                   height={24}
                   alt="Truevenix logo"
