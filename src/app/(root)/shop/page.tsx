@@ -1,11 +1,11 @@
 "use client"
 
-import { Suspense, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { ArrowUpDown, ChevronLeft, ChevronRight, Filter, Package, Search, X } from "lucide-react"
+import { ArrowUpDown, Filter, Loader2, Package, Search, X } from "lucide-react"
 import { motion } from "framer-motion"
 import ProductCard from "@/components/products/ProductCard"
-import { useProducts } from "@/hooks/use-store-api"
+import { useInfiniteProducts } from "@/hooks/use-store-api"
 import { toCardProduct } from "@/lib/products"
 
 type SortBy = "createdAt" | "price" | "name"
@@ -42,7 +42,6 @@ function ShopContent() {
   const [minPrice, setMinPrice] = useState("")
   const [maxPrice, setMaxPrice] = useState("")
   const [sort, setSort] = useState<`${SortBy}_${SortOrder}`>("createdAt_desc")
-  const [page, setPage] = useState(1)
   const [mobileFilters, setMobileFilters] = useState(false)
 
   const [sortBy, sortOrder] = sort.split("_") as [SortBy, SortOrder]
@@ -56,15 +55,43 @@ function ShopContent() {
       maxPrice: maxPrice ? Number(maxPrice) : undefined,
       sortBy,
       sortOrder,
-      page,
       limit: 20,
     }),
-    [brandParam, q, category, inStock, minPrice, maxPrice, sortBy, sortOrder, page]
+    [brandParam, q, category, inStock, minPrice, maxPrice, sortBy, sortOrder]
   )
 
-  const productsQuery = useProducts(filters)
-  const products = (productsQuery.data?.products ?? []).map(toCardProduct)
-  const pagination = productsQuery.data?.pagination ?? { page: 1, pages: 1, total: 0, limit: 20 }
+  const productsQuery = useInfiniteProducts(filters)
+  const products = useMemo(
+    () => (productsQuery.data?.pages ?? []).flatMap((p) => p.products).map(toCardProduct),
+    [productsQuery.data]
+  )
+  const total = productsQuery.data?.pages?.[0]?.pagination.total ?? 0
+
+  // ── Infinite scroll sentinel ─────────────────────────────────────────────
+  // A 1px-tall div at the bottom of the grid. Once it enters the viewport
+  // we fetch the next page — no manual "load more" click, no page buttons.
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const node = sentinelRef.current
+    if (!node) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries[0].isIntersecting &&
+          productsQuery.hasNextPage &&
+          !productsQuery.isFetchingNextPage
+        ) {
+          productsQuery.fetchNextPage()
+        }
+      },
+      { rootMargin: "600px 0px" } // start fetching well before it's on screen
+    )
+
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [productsQuery.hasNextPage, productsQuery.isFetchingNextPage, productsQuery.fetchNextPage])
 
   const resetFilters = () => {
     setQ("")
@@ -73,7 +100,6 @@ function ShopContent() {
     setMinPrice("")
     setMaxPrice("")
     setSort("createdAt_desc")
-    setPage(1)
   }
 
   const filterPanel = (
@@ -93,7 +119,6 @@ function ShopContent() {
               key={item.id}
               onClick={() => {
                 setCategory(item.id)
-                setPage(1)
                 setMobileFilters(false)
               }}
               className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold"
@@ -118,10 +143,7 @@ function ShopContent() {
           ].map((item) => (
             <button
               key={item.value}
-              onClick={() => {
-                setInStock(item.value)
-                setPage(1)
-              }}
+              onClick={() => setInStock(item.value)}
               className="rounded-xl border px-2 py-2 text-xs font-bold"
               style={{
                 borderColor: inStock === item.value ? "var(--theme-primary)" : "#e5e7eb",
@@ -139,10 +161,7 @@ function ShopContent() {
         <div className="grid grid-cols-2 gap-2">
           <input
             value={minPrice}
-            onChange={(event) => {
-              setMinPrice(event.target.value)
-              setPage(1)
-            }}
+            onChange={(event) => setMinPrice(event.target.value)}
             type="number"
             min="0"
             placeholder="Min"
@@ -150,10 +169,7 @@ function ShopContent() {
           />
           <input
             value={maxPrice}
-            onChange={(event) => {
-              setMaxPrice(event.target.value)
-              setPage(1)
-            }}
+            onChange={(event) => setMaxPrice(event.target.value)}
             type="number"
             min="0"
             placeholder="Max"
@@ -190,10 +206,7 @@ function ShopContent() {
           )}
           <form
             className="mx-auto mt-6 flex max-w-2xl items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-2"
-            onSubmit={(event) => {
-              event.preventDefault()
-              setPage(1)
-            }}
+            onSubmit={(event) => event.preventDefault()}
           >
             <Search size={18} className="text-gray-400" />
             <input
@@ -241,7 +254,7 @@ function ShopContent() {
                   Filters
                 </button>
                 <span className="text-sm font-semibold text-gray-500">
-                  {pagination.total} product{pagination.total === 1 ? "" : "s"}
+                  {total} product{total === 1 ? "" : "s"}
                 </span>
               </div>
 
@@ -283,30 +296,24 @@ function ShopContent() {
               <>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                   {products.map((product, index) => (
-                    <ProductCard key={product.id} product={product} delay={index * 0.02} />
+                    <ProductCard key={product.id} product={product} delay={(index % 20) * 0.02} />
                   ))}
                 </div>
 
-                {pagination.pages > 1 ? (
-                  <div className="mt-8 flex items-center justify-center gap-3">
-                    <button
-                      disabled={page <= 1}
-                      onClick={() => setPage((current) => Math.max(1, current - 1))}
-                      className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 disabled:opacity-40"
-                    >
-                      <ChevronLeft size={17} />
-                    </button>
-                    <span className="text-sm font-bold text-gray-500">
-                      Page {pagination.page} of {pagination.pages}
-                    </span>
-                    <button
-                      disabled={page >= pagination.pages}
-                      onClick={() => setPage((current) => Math.min(pagination.pages, current + 1))}
-                      className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 disabled:opacity-40"
-                    >
-                      <ChevronRight size={17} />
-                    </button>
+                {/* Sentinel — fetches the next page once it scrolls near view */}
+                <div ref={sentinelRef} className="h-1 w-full" />
+
+                {productsQuery.isFetchingNextPage ? (
+                  <div className="mt-8 flex items-center justify-center gap-2 text-sm font-semibold text-gray-400">
+                    <Loader2 size={16} className="animate-spin" />
+                    Loading more products...
                   </div>
+                ) : null}
+
+                {!productsQuery.hasNextPage && products.length > 0 ? (
+                  <p className="mt-8 text-center text-sm font-semibold text-gray-400">
+                    You&apos;ve reached the end — {total} product{total === 1 ? "" : "s"} total.
+                  </p>
                 ) : null}
               </>
             )}

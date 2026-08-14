@@ -1,6 +1,6 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query"
 import {
   getProducts,
   getRelatedProducts,
@@ -13,6 +13,21 @@ export function useProducts(filters: ProductListFilters) {
     queryKey: ["products", filters],
     queryFn: () => getProducts(filters),
     placeholderData: (previous) => previous,
+  })
+}
+
+// Same filters as useProducts, but paginates by accumulating pages instead
+// of replacing them — used for infinite-scroll product grids (e.g. /shop).
+// `page` is managed internally via pageParam; don't pass it in filters.
+export function useInfiniteProducts(filters: Omit<ProductListFilters, "page">) {
+  return useInfiniteQuery({
+    queryKey: ["products", "infinite", filters],
+    queryFn: ({ pageParam }) => getProducts({ ...filters, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination.page < lastPage.pagination.pages
+        ? lastPage.pagination.page + 1
+        : undefined,
   })
 }
 
