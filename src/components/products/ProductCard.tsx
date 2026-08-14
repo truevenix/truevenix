@@ -31,6 +31,7 @@ export type CardProduct = {
   subCategory?: string
   brand: string | null
   inStock: boolean
+  isFeatured?: boolean 
   badge: string | null
   avgRating?: number
   reviewCount?: number

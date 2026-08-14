@@ -13,11 +13,13 @@ import {
 } from "lucide-react"
 import HomeTabs        from "@/components/sections/Hometab"
 import ShopByBrand     from "@/components/Shopbybrand"
+import FeaturedProducts from "@/components/sections/FeaturedProducts"
 import { db }          from "@/lib/db"
 import { type CardProduct }       from "@/components/products/ProductCard"
 import { type ProductCategoryId } from "@/providers/theme-provider"
 import ShopByCategory from "@/components/ShopByCategory"
 import Navbar from "@/components/layout/Navbar"
+
 
 export const revalidate = 60
 
@@ -85,6 +87,7 @@ function dbProductToCardProduct(p: DBProduct): CardProduct {
     brand:        p.brand,
     inStock:      p.inStock,
     badge:        p.badge,
+    isFeatured:   p.isFeatured,
     images:
       p.images.length > 0
         ? p.images
@@ -279,6 +282,64 @@ async function ProductsSection() {
 }
 
 // ─────────────────────────────────────────────
+// FEATURED SECTION (async server component)
+// Fetches only isFeatured=true products. Rendered after ShopByCategory,
+// with its own Suspense boundary so it doesn't block the rest of the page.
+// ─────────────────────────────────────────────
+
+function FeaturedSkeleton() {
+  return (
+    <div className="w-full px-3 md:px-6 pb-10 animate-pulse">
+      <div className="h-7 w-56 bg-gray-100 rounded mb-4" />
+      <div className="flex gap-3 md:gap-4 overflow-hidden">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex-shrink-0 w-[46%] sm:w-[32%] md:w-[24%] lg:w-[19%] h-[260px] rounded-2xl bg-gray-100"
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+async function FeaturedSection() {
+  let rows: DBProduct[] = []
+
+  try {
+    rows = await db.product.findMany({
+      where: { isFeatured: true },
+      select: {
+        id:            true,
+        name:          true,
+        description:   true,
+        price:         true,
+        originalPrice: true,
+        category:      true,
+        subCategory:   true,
+        brand:         true,
+        inStock:       true,
+        badge:         true,
+        isFeatured:    true,
+        images: {
+          select: { id: true, color: true, colorCode: true, image: true },
+          take: 3,
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+    })
+  } catch (err) {
+    console.error("❌ FeaturedSection DB error:", err)
+    return null
+  }
+
+  const featuredProducts = rows.map(dbProductToCardProduct)
+
+  return <FeaturedProducts products={featuredProducts} />
+}
+
+// ─────────────────────────────────────────────
 // PAGE
 // Order: HomeTabs (hero + tabs + products) → TrustStrip → ShopByBrand (inside ProductsSection)
 // ─────────────────────────────────────────────
@@ -294,8 +355,14 @@ export default function HomePage() {
       <Suspense fallback={<HomeTabsSkeleton />}>
         <ProductsSection />
       </Suspense>
+
       <TrustStrip />
       <ShopByCategory />
+
+      {/* ② Featured Products — after Shop by Category, own DB fetch + Suspense */}
+      <Suspense fallback={<FeaturedSkeleton />}>
+        <FeaturedSection />
+      </Suspense>
     </main>
     </>
   )
