@@ -12,6 +12,7 @@ import Link from "next/link"
 import { ArrowRight, ChevronLeft, ChevronRight, Sparkles } from "lucide-react"
 import ProductCard, { type CardProduct } from "@/components/products/ProductCard"
 import { useTheme } from "@/providers/theme-provider"
+import SectionHeader from "../SectionHeader"
 
 type Props = {
   products: CardProduct[]
@@ -35,23 +36,11 @@ export default function FeaturedProducts({ products }: Props) {
       {/* Header */}
       <div className="flex items-end justify-between mb-4">
         <div className="flex items-center gap-2.5">
-          <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: theme.primaryLight }}
-          >
-            <Sparkles size={18} style={{ color: theme.primary }} />
-          </div>
-          <div>
-            <p
-              className="text-xs font-bold tracking-widest uppercase mb-0.5"
-              style={{ color: theme.primary }}
-            >
-              Hand-picked
-            </p>
-            <h2 className="text-xl md:text-2xl font-extrabold text-gray-900">
-              Featured Products
-            </h2>
-          </div>
+          
+          <SectionHeader
+                  title="Featured Products"
+                  subtitle="Hand-picked products we think you'll love"
+                />
         </div>
 
         {/* Desktop arrows */}

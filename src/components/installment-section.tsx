@@ -15,7 +15,7 @@ import {
 } from "./Installment-mockup";
 import { TruevenixLogo } from "./theme-logo";
 import { useTheme } from "@/providers/theme-provider";
-
+import { usePathname } from "next/navigation"; 
 /* ------------------------------------------------------------------ *
  * Icons
  * ------------------------------------------------------------------ */
@@ -108,6 +108,8 @@ const TRUST = [
   "No credit check, no guarantor",
 ];
 
+const HIDDEN_ON = ["/profile", "/orders", "/payment-success", "/checkout", "/cart"];  // ← added
+
 export function InstallmentSection({
   product = DEFAULT_PRODUCT,
 }: {
@@ -115,6 +117,9 @@ export function InstallmentSection({
 }) {
   const [plan, setPlan] = useState<PlanCount>(4);
   const { theme } = useTheme();
+  const pathname = usePathname();  
+   const isHidden = HIDDEN_ON.some((path) => pathname.startsWith(path));  // ← added
+  if (isHidden) return null;                              // ← added
 
   return (
     <section
