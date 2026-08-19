@@ -30,6 +30,7 @@ import {
   installmentDurationLabel,
   INSTALLMENT_TERMS_URL,
 } from "@/lib/installments"
+import { useWishlistIds, useToggleWishlist } from "@/hooks/use-wishlist"
 import ProductAskAI from "@/components/products/ProductAskAI"
 import Image from "next/image"
 
@@ -141,7 +142,9 @@ export default function ProductDetailClient({ product }: { product: ProductDetai
   const router = useRouter()
   const [selectedImage, setSelectedImage] = useState(product.images[0])
   const [quantity, setQuantity] = useState(1)
-  const [wished, setWished] = useState(false)
+ const wishlistIds = useWishlistIds()
+  const toggleWishlist = useToggleWishlist()
+  const wished = wishlistIds.has(product.id)
   const [installmentCount, setInstallmentCount] = useState<2 | 3 | 4>(2)
   const [buyingWithInstallments, setBuyingWithInstallments] = useState(false)
   const [checkingOut, setCheckingOut] = useState(false)
@@ -192,6 +195,24 @@ export default function ProductDetailClient({ product }: { product: ProductDetai
       description: `${quantity} item${quantity === 1 ? "" : "s"} — ${formatPrice(price * quantity)}`,
     })
   }
+
+  // Wishlist toggle — same pattern as ProductCard: redirect to /login when
+// signed out, otherwise hit the real /api/v1/wishlist/[id] toggle endpoint.
+const handleWish = () => {
+  if (!user) {
+    router.push("/login")
+    return
+  }
+
+  toggleWishlist.mutate(product.id, {
+    onSuccess: (data) => {
+      toast.success(data.wishlisted ? "Added to wishlist" : "Removed from wishlist")
+    },
+    onError: () => {
+      toast.error("Could not update wishlist. Please try again.")
+    },
+  })
+}
 
   // "Buy with installments" adds the current selection to the cart (same as
   // Add to cart, silently — no toast, since we're navigating away immediately)
@@ -308,9 +329,10 @@ export default function ProductDetailClient({ product }: { product: ProductDetai
               </span>
             ) : null}
             <button
-              onClick={() => setWished((c) => !c)}
-              className="absolute right-4 top-4 rounded-full bg-white p-3 shadow-md"
-              aria-label="Add to wishlist"
+              onClick={handleWish}
+            disabled={toggleWishlist.isPending}
+            className="absolute right-4 top-4 rounded-full bg-white p-3 shadow-md disabled:opacity-60"
+            aria-label="Add to wishlist"
             >
               <Heart
                 size={17}

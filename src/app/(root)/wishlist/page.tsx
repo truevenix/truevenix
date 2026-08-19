@@ -12,9 +12,10 @@ export default async function WishlistPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
 
-  return 
+  return (
   <>
             <Navbar/>
   <WishlistClient />
   </>
+  )
 }
