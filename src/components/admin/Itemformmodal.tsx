@@ -182,6 +182,7 @@ export default function ItemFormModal({
     electronics: [],
     phones: [],
     computers: [],
+    machinery: [],
   })
 
   const {

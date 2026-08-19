@@ -20,6 +20,7 @@ const GOOGLE_PRODUCT_CATEGORY: Record<string, string> = {
   phones:      "Electronics > Communications > Telephony > Mobile Phones",
   accessories: "Electronics > Electronics Accessories",
   computers:   "Electronics > Computers",
+  machinery:   "Hardware > Power & Electrical Supplies > Generators",
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

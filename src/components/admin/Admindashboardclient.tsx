@@ -82,6 +82,7 @@ function buildKnownSubCategories(products: AdminProduct[]) {
     electronics: [],
     phones: [],
     computers: [],
+    machinery: [],
   }
 
   for (const product of products) {
@@ -93,7 +94,6 @@ function buildKnownSubCategories(products: AdminProduct[]) {
 
   return base
 }
-
 export default function AdminDashboardClient({ data }: { data: AdminData }) {
   const [products, setProducts] = useState(data.products)
   const [orders, setOrders] = useState(data.orders)
