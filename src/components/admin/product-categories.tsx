@@ -5,6 +5,7 @@ import {
   Monitor,
   Package,
   Smartphone,
+  Wrench,
   Zap,
 } from "lucide-react"
 
@@ -15,6 +16,7 @@ export type truevenixCategoryId =
   | "electronics"
   | "phones"
   | "computers"
+  | "machinery"
 
 export type ProductCategoryId = Exclude<truevenixCategoryId, "all">
 
@@ -85,6 +87,15 @@ export const CATEGORY_SLIDES: Array<{
     labels: { heading: "Laptops & Computers", name: "Computers", productName: "Computer" },
     color: "#0D9488",
     light: "#F0FDFA",
+  },
+  {
+    id: "machinery",
+    image: "/slide1.png",
+    alt: "Industrial Machinery",
+    icon: Wrench,
+    labels: { heading: "Machinery", name: "Machinery", productName: "Machine" },
+    color: "#D97706",
+    light: "#FFFBEB",
   },
 ]
 

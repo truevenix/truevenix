@@ -110,6 +110,7 @@ enum ProductCategory {
   ELECTRONICS
   PHONES
   COMPUTERS
+  MACHINERY
 }
 
 model Product {

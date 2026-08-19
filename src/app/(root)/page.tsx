@@ -69,6 +69,7 @@ const PRODUCT_CATEGORIES: ProductCategoryId[] = [
   "electronics",
   "phones",
   "computers",
+  "machinery",
 ]
 
 // ─────────────────────────────────────────────

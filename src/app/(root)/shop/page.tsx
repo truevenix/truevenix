@@ -18,6 +18,7 @@ const categories = [
   { id: "electronics", label: "Electronics" },
   { id: "phones", label: "Phones" },
   { id: "computers", label: "Computers" },
+  { id: "machinery", label: "Machinery" },
 ]
 
 function ProductSkeleton() {

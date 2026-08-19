@@ -8,6 +8,7 @@ const VALID_CATEGORIES: ProductCategoryId[] = [
   "electronics",
   "phones",
   "computers",
+  "machinery",
 ]
 
 export function toProductCategory(category: string): ProductCategoryId {

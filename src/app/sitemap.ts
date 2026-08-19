@@ -39,6 +39,7 @@ const PRODUCT_CATEGORIES = [
   "electronics",
   "phones",
   "computers",
+  "machinery",
 ] as const
 
 // ── Main export ───────────────────────────────────────────────────────────────
